@@ -467,9 +467,15 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
                           {calculateFitScore(job)}%
                         </span>
                       </div>
-                      <a href={job.external_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-xl border border-blue-600 bg-white px-4 py-2.5 text-sm font-semibold text-blue-600 transition-all hover:bg-blue-50 hover:shadow-sm">
-                        <ExternalLink className="h-4 w-4" /> Apply
-                      </a>
+                      {job.external_url ? (
+                        <a href={job.external_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-xl border border-blue-600 bg-white px-4 py-2.5 text-sm font-semibold text-blue-600 transition-all hover:bg-blue-50 hover:shadow-sm">
+                          <ExternalLink className="h-4 w-4" /> Apply
+                        </a>
+                      ) : (
+                        <button disabled className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-400">
+                          <ExternalLink className="h-4 w-4" /> Apply
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

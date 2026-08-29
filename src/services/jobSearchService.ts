@@ -200,6 +200,7 @@ function textValue(job: RapidApiJob, keys: string[], fallback: string): string {
   for (const key of keys) {
     const value = job[key];
     if (typeof value === 'string' && value.trim()) return value.trim();
+    if (typeof value === 'number') return String(value);
   }
   return fallback;
 }
@@ -208,7 +209,9 @@ function listValue(job: RapidApiJob, keys: string[], fallback: string[]): string
   for (const key of keys) {
     const value = job[key];
     if (Array.isArray(value)) {
-      const items = value.filter((item): item is string => typeof item === 'string' && item.trim()).map((item) => item.trim());
+      const items = value
+        .map((item) => (typeof item === 'string' ? item.trim() : typeof item === 'object' && item && 'name' in item && typeof item.name === 'string' ? item.name.trim() : ''))
+        .filter(Boolean);
       if (items.length > 0) return items;
     }
     if (typeof value === 'string' && value.trim()) return value.split(/[,|]/).map((item) => item.trim()).filter(Boolean);
@@ -216,32 +219,32 @@ function listValue(job: RapidApiJob, keys: string[], fallback: string[]): string
   return fallback;
 }
 
-function normalizeRapidApiJobs(payload: unknown, source: string, platform: string, query: string, category: string): SearchResultJob[] {
+function normalizeJSearchJobs(payload: unknown, query: string, category: string): SearchResultJob[] {
   if (!payload || typeof payload !== 'object') return [];
-  const data = (payload as { data?: unknown; jobs?: unknown; results?: unknown });
-  const rows = [data.data, data.jobs, data.results].find(Array.isArray);
-  if (!rows) return [];
+  const data = (payload as { data?: unknown }).data;
+  if (!Array.isArray(data)) return [];
 
-  return (rows as RapidApiJob[]).map((job, index) => {
-    const resultSource = textValue(job, ['__source'], source);
-    const resultPlatform = resultSource === 'internships' ? 'Internships API' : resultSource === 'jsearch' ? 'JSearch' : platform;
-    const title = textValue(job, ['job_title', 'title', 'jobTitle', 'position'], 'Open Opportunity');
+  return (data as RapidApiJob[]).map((job, index) => {
+    const title = textValue(job, ['job_title', 'title', 'position'], 'Open Opportunity');
     const company = textValue(job, ['employer_name', 'company_name', 'company', 'employer'], 'Hiring Partner');
-    const location = textValue(job, ['job_location', 'location', 'job_city', 'city'], 'India');
-    const description = textValue(job, ['job_description', 'description', 'summary'], `Opportunity for ${query}.`);
+    const location = textValue(job, ['job_city', 'job_location', 'location', 'city', 'country'], 'India');
+    const description = textValue(job, ['job_description', 'description', 'summary', 'snippet'], `Opportunity for ${query}.`);
+    const publisher = textValue(job, ['publisher_name', 'job_publisher', 'publisher', 'source'], 'JSearch');
     const skills = listValue(job, ['job_required_skills', 'skills', 'skill_set', 'technologies'], [query, 'Healthcare']);
+    const applyLink = textValue(job, ['job_apply_link', 'apply_link', 'job_url', 'url', 'link'], '');
+
     return {
-      id: textValue(job, ['job_id', 'id', 'internship_id'], `${source}-${index}-${title}`),
+      id: textValue(job, ['job_id', 'id', 'position_id'], `${publisher}-${index}-${title}`),
       title,
       company,
       location,
       stipend: textValue(job, ['salary', 'stipend', 'salary_range', 'job_salary'], 'Competitive / Standard'),
       skills,
       description: description.length > 220 ? `${description.slice(0, 220)}...` : description,
-      source: resultSource,
+      source: publisher.toLowerCase().replace(/\s+/g, '-'),
       category: resolveCategoryForQuery(query, category),
-      external_url: textValue(job, ['job_apply_link', 'apply_link', 'url', 'link'], `https://www.google.com/search?q=${encodeURIComponent(`${title} ${company}`)}`),
-      platform: resultPlatform,
+      external_url: applyLink,
+      platform: publisher || 'JSearch',
       created_at: new Date().toISOString(),
     };
   });
@@ -251,21 +254,48 @@ export async function searchJobsLive(query: string, category: string = 'All Skil
   const safeQuery = (query || 'Ayush healthcare jobs').trim();
   const searchTerms = expandSearchTokens(safeQuery).join(' ');
   const enrichedQuery = searchTerms || safeQuery;
-  const response = await fetch(`/api/jobs?query=${encodeURIComponent(enrichedQuery)}`, { signal });
-  if (!response.ok) return searchJobs(safeQuery, category, 4);
+  const rapidApiKey = (import.meta.env.VITE_RAPIDAPI_KEY ?? '').trim();
 
-  const payload = await response.json();
-  const liveJobs = normalizeRapidApiJobs(payload, 'aggregated', 'RapidAPI Jobs', safeQuery, category);
-
-  if (liveJobs.length === 0) {
+  if (!rapidApiKey) {
     return searchJobs(safeQuery, category, 4);
   }
 
-  const scoredJobs = liveJobs
-    .map((job) => ({ job, score: scoreQueryMatch(job, safeQuery) }))
-    .sort((a, b) => b.score - a.score)
-    .map(({ job }) => job)
-    .slice(0, 8);
+  try {
+    const url = new URL('https://jsearch.p.rapidapi.com/search');
+    url.searchParams.set('query', enrichedQuery);
+    url.searchParams.set('page', '1');
+    url.searchParams.set('num_pages', '1');
+    url.searchParams.set('country', 'in');
 
-  return scoredJobs.length > 0 ? scoredJobs : searchJobs(safeQuery, category, 4);
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'x-rapidapi-key': rapidApiKey,
+        'x-rapidapi-host': 'jsearch.p.rapidapi.com',
+        'Content-Type': 'application/json',
+      },
+      signal,
+    });
+
+    if (!response.ok) {
+      return searchJobs(safeQuery, category, 4);
+    }
+
+    const payload = await response.json();
+    const liveJobs = normalizeJSearchJobs(payload, safeQuery, category);
+
+    if (liveJobs.length === 0) {
+      return searchJobs(safeQuery, category, 4);
+    }
+
+    const scoredJobs = liveJobs
+      .map((job) => ({ job, score: scoreQueryMatch(job, safeQuery) }))
+      .sort((a, b) => b.score - a.score)
+      .map(({ job }) => job)
+      .slice(0, 8);
+
+    return scoredJobs.length > 0 ? scoredJobs : searchJobs(safeQuery, category, 4);
+  } catch {
+    return searchJobs(safeQuery, category, 4);
+  }
 }

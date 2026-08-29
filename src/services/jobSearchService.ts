@@ -47,11 +47,35 @@ function titleCase(value: string): string {
     .join(' ');
 }
 
+function expandSearchTokens(query: string): string[] {
+  const cleaned = normalizeText(query || 'Ayush healthcare jobs');
+  const tokens = cleaned.split(/\s+/).filter((word) => word.length > 2 && !new Set(['the', 'and', 'for', 'with', 'jobs', 'job', 'role', 'work', 'open', 'apply', 'opportunity', 'careers', 'career', 'in', 'at', 'on', 'of', 'to', 'from', 'any', 'skill', 'search', 'portal', 'vacancy', 'vacancies']).has(word));
+  const synonymMap: Record<string, string[]> = {
+    'aiml': ['artificial intelligence', 'machine learning', 'ai', 'ml'],
+    'ai': ['artificial intelligence', 'machine learning', 'ml'],
+    'ml': ['machine learning', 'ai'],
+    'machine': ['machine learning', 'ai'],
+    'learning': ['machine learning', 'ai'],
+    'data': ['data science', 'analytics', 'business intelligence'],
+    'research': ['clinical research', 'research analyst', 'pharmacovigilance'],
+    'ayush': ['ayurveda', 'panchakarma', 'natural medicine', 'wellness'],
+    'healthcare': ['clinical research', 'hospital operations', 'public health'],
+    'developer': ['software engineer', 'developer'],
+    'engineer': ['software engineer', 'machine learning engineer', 'data engineer'],
+  };
+
+  const expanded = new Set<string>(tokens);
+  for (const token of tokens) {
+    const synonyms = synonymMap[token] ?? [];
+    synonyms.forEach((synonym) => expanded.add(synonym));
+  }
+
+  return Array.from(expanded).slice(0, 8);
+}
+
 export function deriveSkillTags(query: string, category: string = 'All Skills'): string[] {
   const cleaned = normalizeText(query || 'Ayush healthcare jobs');
-  const directTerms = cleaned
-    .split(' ')
-    .filter((word) => word.length > 2 && !new Set(['the', 'and', 'for', 'with', 'jobs', 'job', 'role', 'work', 'open', 'apply', 'opportunity', 'careers', 'career', 'in', 'at', 'on', 'of', 'to', 'from', 'any', 'skill', 'search', 'portal', 'vacancy', 'vacancies']).has(word));
+  const directTerms = expandSearchTokens(cleaned);
 
   const categorySkills = SEARCH_SKILLS[(category as SearchCategory) ?? 'All Skills'] ?? SEARCH_SKILLS['All Skills'];
   const merged = [...directTerms, ...categorySkills, ...ALL_SKILLS];
@@ -79,6 +103,9 @@ export function resolveCategoryForQuery(query: string, selectedCategory: string)
     if (selectedCategory === 'Government') return 'Government & Public';
   }
 
+  if (/(aiml|ai ml|artificial intelligence|machine learning|ml|deep learning|computer vision|nlp|data science|python)/.test(normalized)) {
+    return 'Tech/Software';
+  }
   if (/(ayurveda|panchakarma|naturopathy|yoga|unani|homeopathy|medicine|healthcare|clinical|hplc|pharmacovigilance|gcp|nabh|research)/.test(normalized)) {
     return 'Healthcare & Ayush';
   }
@@ -92,6 +119,53 @@ export function resolveCategoryForQuery(query: string, selectedCategory: string)
     return 'Government & Public';
   }
   return 'Tech/Software';
+}
+
+function overlapScore(text: string, terms: string[]): number {
+  const normalized = text.toLowerCase();
+  return terms.reduce((total, term) => {
+    if (!term) return total;
+    return total + (normalized.includes(term.toLowerCase()) ? 1 : 0);
+  }, 0);
+}
+
+function semanticBoost(query: string, job: SearchResultJob): number {
+  const terms = expandSearchTokens(query).map((term) => term.toLowerCase());
+  const compactTerms = new Set(terms.filter(Boolean));
+  if (!compactTerms.size) return 0;
+
+  const title = job.title.toLowerCase();
+  const desc = `${job.description} ${job.company} ${(job.skills ?? []).join(' ')}`.toLowerCase();
+
+  let boost = 0;
+  for (const term of compactTerms) {
+    if (title.includes(term)) boost += 6;
+    if (desc.includes(term)) boost += 2;
+    if (term.includes('machine') && (title.includes('ml') || title.includes('ai') || title.includes('data'))) boost += 3;
+    if (term.includes('artificial') && (title.includes('ai') || title.includes('machine'))) boost += 3;
+    if ((job.skills ?? []).some((skill) => skill.toLowerCase().includes(term))) boost += 5;
+  }
+
+  return boost + overlapScore(`${job.title} ${job.description} ${(job.skills ?? []).join(' ')}`.toLowerCase(), Array.from(compactTerms));
+}
+
+function scoreQueryMatch(job: SearchResultJob, query: string): number {
+  const text = [job.title, job.company, job.description, job.category, ...(job.skills ?? [])].join(' ').toLowerCase();
+  const expanded = expandSearchTokens(query).map((item) => item.toLowerCase());
+  const terms = new Set(expanded);
+
+  if (!terms.size) return 1;
+
+  let score = 0;
+  for (const term of terms) {
+    if (!term) continue;
+    if (text.includes(term)) score += 3;
+    if (job.title.toLowerCase().includes(term)) score += 5;
+    if (job.company.toLowerCase().includes(term)) score += 2;
+    if ((job.skills ?? []).some((skill) => skill.toLowerCase().includes(term))) score += 4;
+  }
+
+  return score + semanticBoost(query, job);
 }
 
 export function searchJobs(query: string, category: string = 'All Skills', limit = 4): SearchResultJob[] {
@@ -175,10 +249,23 @@ function normalizeRapidApiJobs(payload: unknown, source: string, platform: strin
 
 export async function searchJobsLive(query: string, category: string = 'All Skills', signal?: AbortSignal): Promise<SearchResultJob[]> {
   const safeQuery = (query || 'Ayush healthcare jobs').trim();
-  const response = await fetch(`/api/jobs?query=${encodeURIComponent(safeQuery)}`, { signal });
+  const searchTerms = expandSearchTokens(safeQuery).join(' ');
+  const enrichedQuery = searchTerms || safeQuery;
+  const response = await fetch(`/api/jobs?query=${encodeURIComponent(enrichedQuery)}`, { signal });
   if (!response.ok) return searchJobs(safeQuery, category, 4);
 
   const payload = await response.json();
   const liveJobs = normalizeRapidApiJobs(payload, 'aggregated', 'RapidAPI Jobs', safeQuery, category);
-  return liveJobs.length > 0 ? liveJobs.slice(0, 8) : searchJobs(safeQuery, category, 4);
+
+  if (liveJobs.length === 0) {
+    return searchJobs(safeQuery, category, 4);
+  }
+
+  const scoredJobs = liveJobs
+    .map((job) => ({ job, score: scoreQueryMatch(job, safeQuery) }))
+    .sort((a, b) => b.score - a.score)
+    .map(({ job }) => job)
+    .slice(0, 8);
+
+  return scoredJobs.length > 0 ? scoredJobs : searchJobs(safeQuery, category, 4);
 }

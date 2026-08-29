@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { supabase, FALLBACK_CHECKINS, FALLBACK_JOBS, type Job, type CheckIn } from '@/lib/supabase';
 import { calculateAsqFit, STUDENT_SKILLS } from '@/lib/asq';
-import { JOB_CATEGORIES, type JobCategory } from '@/lib/skills';
+import { JOB_CATEGORIES, SEARCH_CHIPS, type JobCategory } from '@/lib/skills';
 import { searchJobs, searchJobsLive, deriveSkillTags, type SearchResultJob } from '@/services/jobSearchService';
 import { useAuth } from '@/context/AuthContext';
 
@@ -73,6 +73,7 @@ export function StudentHub({ onToast, clinicalHours, skillMatchIndex, onClinical
   const [loading, setLoading] = useState(true);
   const [liveSearchJobs, setLiveSearchJobs] = useState<SearchResultJob[]>([]);
   const [liveSearchLoading, setLiveSearchLoading] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [appliedJobIds, setAppliedJobIds] = useState<Set<string>>(new Set());
 
@@ -108,6 +109,27 @@ export function StudentHub({ onToast, clinicalHours, skillMatchIndex, onClinical
   useEffect(() => { loadJobs(); loadCheckins(); }, [loadJobs, loadCheckins]);
 
   useEffect(() => {
+    const saved = localStorage.getItem('ayush_recent_searches');
+    if (!saved) return;
+    try {
+      const parsed = JSON.parse(saved) as string[];
+      if (Array.isArray(parsed)) setRecentSearches(parsed.slice(0, 8));
+    } catch {
+      localStorage.removeItem('ayush_recent_searches');
+    }
+  }, []);
+
+  const pushRecentSearch = useCallback((value: string) => {
+    const clean = value.trim();
+    if (!clean) return;
+    setRecentSearches((prev) => {
+      const next = [clean, ...prev.filter((item) => item.toLowerCase() !== clean.toLowerCase())].slice(0, 8);
+      localStorage.setItem('ayush_recent_searches', JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
     if (!search.trim()) {
       setLiveSearchJobs([]);
       return;
@@ -130,6 +152,44 @@ export function StudentHub({ onToast, clinicalHours, skillMatchIndex, onClinical
   }, [search, category]);
 
   const dynamicSkillTags = useMemo(() => deriveSkillTags(search || 'Ayush healthcare jobs', category), [search, category]);
+  const searchSuggestions = useMemo(() => {
+    const suggestedPool = [
+      'AI/ML Engineer',
+      'Machine Learning Engineer',
+      'Python Developer',
+      'Data Analyst',
+      'Clinical Research Associate',
+      'Pharmacovigilance Analyst',
+      'Ayurveda Product Specialist',
+      'React Developer',
+      'NABH Quality Executive',
+      'Panchakarma Therapist',
+      'UX Designer',
+      'Research Scientist',
+      'Clinical Trial Coordinator',
+      'Product Analyst',
+      'Quality Assurance Analyst',
+      'Healthcare Operations Manager',
+      'Public Health Specialist',
+      ...SEARCH_CHIPS,
+      ...recentSearches,
+    ];
+
+    const query = search.trim().toLowerCase();
+    if (!query) return [...new Set(suggestedPool)].slice(0, 8);
+
+    return [...new Set([
+      ...suggestedPool.filter((item) => {
+        const term = item.toLowerCase();
+        return term.includes(query) || query.includes(term) || term.split(/\s+/).some((part) => part.length > 2 && query.includes(part));
+      }),
+      ...dynamicSkillTags.filter((tag) => {
+        const term = tag.toLowerCase();
+        return term.includes(query) || query.includes(term) || term.split(/\s+/).some((part) => part.length > 2 && query.includes(part));
+      }),
+      ...recentSearches.filter((item) => item.toLowerCase().includes(query) || query.includes(item.toLowerCase())),
+    ])].slice(0, 10);
+  }, [search, dynamicSkillTags, recentSearches]);
   const searchedWebJobs = search.trim() ? liveSearchJobs : [];
 
   const filteredJobs = jobs.filter((job) => {
@@ -271,6 +331,11 @@ export function StudentHub({ onToast, clinicalHours, skillMatchIndex, onClinical
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && search.trim()) {
+                    pushRecentSearch(search);
+                  }
+                }}
                 placeholder="Search any skill or job title — React, HPLC, UX Design, Machine Learning…"
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm text-slate-800 placeholder-slate-400 transition-all focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               />
@@ -293,11 +358,37 @@ export function StudentHub({ onToast, clinicalHours, skillMatchIndex, onClinical
               ))}
             </div>
 
-            <div className="mt-2 flex flex-wrap gap-2">
+            {searchSuggestions.length > 0 && (
+              <div className="mt-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Suggested searches</p>
+                  <span className="text-[10px] text-slate-400">AI-aware</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {searchSuggestions.map((tag) => (
+                    <button
+                      key={tag}
+                      onClick={() => {
+                        setSearch(tag);
+                        pushRecentSearch(tag);
+                      }}
+                      className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 transition-all hover:border-emerald-400 hover:bg-emerald-100"
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-3 flex flex-wrap gap-2">
               {dynamicSkillTags.map((tag) => (
                 <button
                   key={tag}
-                  onClick={() => setSearch(tag)}
+                  onClick={() => {
+                    setSearch(tag);
+                    pushRecentSearch(tag);
+                  }}
                   className="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-xs text-slate-500 transition-all hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
                 >
                   {tag}

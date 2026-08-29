@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 
 export default defineConfig({
-  base: '/AyushNextGenPortal/',
+  base: process.env.VERCEL ? '/' : '/AyushNextGenPortal/',
   plugins: [react()],
   resolve: {
     alias: {

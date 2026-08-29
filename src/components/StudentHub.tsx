@@ -24,11 +24,6 @@ import { useAuth } from '@/context/AuthContext';
 
 type Props = {
   onToast: (message: string, submessage?: string) => void;
-  clinicalHours: number;
-  skillMatchIndex: number;
-  onClinicalHoursChange: (hours: number) => void;
-  onClinicalHoursIncrease: (hours: number) => void;
-  onSkillMatchIndexChange: (score: number) => void;
   onRequireAuth?: (feature: string) => void;
 };
 
@@ -65,15 +60,21 @@ const categoryColors: Record<string, string> = {
 
 const isExternal = (job: Job) => job.source !== 'employer' && !!job.external_url;
 
-export function StudentHub({ onToast, clinicalHours, skillMatchIndex, onClinicalHoursChange, onClinicalHoursIncrease, onSkillMatchIndexChange, onRequireAuth }: Props) {
+export function StudentHub({ onToast, onRequireAuth }: Props) {
   const { isAuthenticated } = useAuth();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('All Skills');
   const [loading, setLoading] = useState(true);
   const [liveSearchJobs, setLiveSearchJobs] = useState<SearchResultJob[]>([]);
+  const [candidateJobs, setCandidateJobs] = useState<SearchResultJob[]>([]);
   const [liveSearchLoading, setLiveSearchLoading] = useState(false);
+  const [candidateLoading, setCandidateLoading] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [targetRole, setTargetRole] = useState('Ayurvedic Medical Officer');
+  const [skillsInput, setSkillsInput] = useState('Panchakarma, Clinical Diagnosis, Herbal Formulation');
+  const [experienceValue, setExperienceValue] = useState('2');
+  const [experienceUnit, setExperienceUnit] = useState<'Days' | 'Months' | 'Years'>('Years');
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [appliedJobIds, setAppliedJobIds] = useState<Set<string>>(new Set());
 
@@ -207,6 +208,51 @@ export function StudentHub({ onToast, clinicalHours, skillMatchIndex, onClinical
   const internalJobs = filteredJobs.filter((j) => j.source === 'employer');
   const externalJobs = search.trim() ? searchedWebJobs : filteredJobs.filter((j) => j.source !== 'employer');
 
+  const normalizeSkillTerms = useCallback((value: string) => {
+    return value
+      .split(/[;,\n]/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => item.replace(/[^a-zA-Z0-9\s&+/.-]/g, ' '));
+  }, []);
+
+  const calculateFitScore = useCallback((job: SearchResultJob) => {
+    const profileSkills = normalizeSkillTerms(skillsInput);
+    const profileRole = targetRole.toLowerCase();
+    const normalizedJobText = [job.title, job.company, job.description, ...(job.skills ?? [])].join(' ').toLowerCase();
+    const profileTerms = new Set([
+      ...profileSkills.flatMap((skill) => skill.toLowerCase().split(/\s+/).filter((part) => part.length > 2)),
+      ...profileRole.split(/\s+/).filter((part) => part.length > 2),
+    ]);
+
+    if (!profileTerms.size) return 0;
+
+    let hits = 0;
+    for (const term of profileTerms) {
+      if (normalizedJobText.includes(term)) hits += 1;
+    }
+
+    return Math.min(99, Math.max(10, Math.round((hits / profileTerms.size) * 100)));
+  }, [normalizeSkillTerms, skillsInput, targetRole]);
+
+  const handleFindMatchingJobs = useCallback(async () => {
+    const cleanedRole = targetRole.trim() || 'Ayurvedic Medical Officer';
+    const cleanedSkills = normalizeSkillTerms(skillsInput);
+    const experienceText = `${experienceValue || '1'} ${experienceUnit || 'Years'}`;
+    const queryBits = [cleanedRole, ...cleanedSkills, experienceText, category === 'All Skills' ? 'jobs' : category];
+    const query = queryBits.filter(Boolean).join(' ');
+
+    setCandidateLoading(true);
+    try {
+      const results = await searchJobsLive(query, category);
+      setCandidateJobs(results.length > 0 ? results : searchJobs(query, category, 5));
+    } catch {
+      setCandidateJobs(searchJobs(query, category, 5));
+    } finally {
+      setCandidateLoading(false);
+    }
+  }, [category, experienceUnit, experienceValue, normalizeSkillTerms, skillsInput, targetRole]);
+
   const handleApply = async (job: Job) => {
     if (!isAuthenticated) {
       onRequireAuth?.('Quick Apply');
@@ -214,7 +260,7 @@ export function StudentHub({ onToast, clinicalHours, skillMatchIndex, onClinical
     }
 
     setApplyingId(job.id);
-    const fit = calculateAsqFit(job, skillMatchIndex, clinicalHours);
+    const fit = calculateAsqFit(job, 88, 140);
 
     if (!supabase) {
       setApplyingId(null);
@@ -295,26 +341,9 @@ export function StudentHub({ onToast, clinicalHours, skillMatchIndex, onClinical
                 </div>
               </div>
             </div>
-            <div className="flex gap-4 sm:gap-6">
-              <div className="text-center">
-                <div className="flex items-center gap-1.5 text-emerald-100">
-                  <Award className="h-4 w-4" /><span className="text-xs font-medium uppercase tracking-wide">Skill Index</span>
-                </div>
-                <p className="mt-1 text-3xl font-bold text-white">{skillMatchIndex}<span className="text-lg text-emerald-200">/100</span></p>
-                <input aria-label="Skill Match Index" type="range" min="0" max="100" value={skillMatchIndex}
-                  onChange={(e) => onSkillMatchIndexChange(Number(e.target.value))}
-                  className="mt-2 w-28 accent-white" />
-              </div>
-              <div className="h-12 w-px bg-white/20" />
-              <div className="text-center">
-                <div className="flex items-center gap-1.5 text-emerald-100">
-                  <Clock className="h-4 w-4" /><span className="text-xs font-medium uppercase tracking-wide">Practical Hrs</span>
-                </div>
-                <p className="mt-1 text-3xl font-bold text-white">{clinicalHours}<span className="text-lg text-emerald-200"> hrs</span></p>
-                <input aria-label="Verified Clinical Hours" type="range" min="0" max="500" step="5" value={clinicalHours}
-                  onChange={(e) => onClinicalHoursChange(Number(e.target.value))}
-                  className="mt-2 w-28 accent-white" />
-              </div>
+            <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur-sm">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-emerald-100">Candidate Profile</p>
+              <p className="mt-1 text-sm text-emerald-50">Dynamic role-to-job matching</p>
             </div>
           </div>
         </div>
@@ -323,118 +352,132 @@ export function StudentHub({ onToast, clinicalHours, skillMatchIndex, onClinical
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Search + Job Feed */}
         <div className="lg:col-span-2 space-y-4">
-          {/* Universal Search Bar */}
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && search.trim()) {
-                    pushRecentSearch(search);
-                  }
-                }}
-                placeholder="Search any skill or job title — React, HPLC, UX Design, Machine Learning…"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm text-slate-800 placeholder-slate-400 transition-all focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-              />
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Candidate Skill Profile</p>
+                <h3 className="mt-1 text-xl font-bold text-slate-800">Find your best-matched jobs</h3>
+              </div>
+              <div className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">Live match</div>
             </div>
 
-            <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1">
-              <Filter className="h-4 w-4 flex-shrink-0 text-slate-400" />
-              {['All Skills', 'AYUSH & Medicine', 'Software & AI', 'Core Engineering', 'Clinical Research', 'Government'].map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setCategory(cat)}
-                  className={`flex-shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-all ${
-                    category === cat
-                      ? 'border-emerald-500 bg-emerald-600 text-white shadow-sm'
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Target Job Title / Role</label>
+                <input
+                  type="text"
+                  value={targetRole}
+                  onChange={(e) => setTargetRole(e.target.value)}
+                  placeholder="Ayurvedic Medical Officer"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                />
+              </div>
 
-            {searchSuggestions.length > 0 && (
-              <div className="mt-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Suggested searches</p>
-                  <span className="text-[10px] text-slate-400">AI-aware</span>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Key Skills</label>
+                <textarea
+                  value={skillsInput}
+                  onChange={(e) => setSkillsInput(e.target.value)}
+                  placeholder="Panchakarma, Clinical Diagnosis, Herbal Formulation"
+                  rows={3}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                />
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-[1fr_150px]">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Experience Duration</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={experienceValue}
+                    onChange={(e) => setExperienceValue(e.target.value)}
+                    placeholder="2"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {searchSuggestions.map((tag) => (
-                    <button
-                      key={tag}
-                      onClick={() => {
-                        setSearch(tag);
-                        pushRecentSearch(tag);
-                      }}
-                      className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 transition-all hover:border-emerald-400 hover:bg-emerald-100"
-                    >
-                      {tag}
-                    </button>
-                  ))}
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Unit</label>
+                  <select
+                    value={experienceUnit}
+                    onChange={(e) => setExperienceUnit(e.target.value as 'Days' | 'Months' | 'Years')}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  >
+                    <option value="Days">Days</option>
+                    <option value="Months">Months</option>
+                    <option value="Years">Years</option>
+                  </select>
                 </div>
               </div>
-            )}
 
-            <div className="mt-3 flex flex-wrap gap-2">
-              {dynamicSkillTags.map((tag) => (
-                <button
-                  key={tag}
-                  onClick={() => {
-                    setSearch(tag);
-                    pushRecentSearch(tag);
-                  }}
-                  className="rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-xs text-slate-500 transition-all hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
-                >
-                  {tag}
-                </button>
-              ))}
+              <button
+                onClick={handleFindMatchingJobs}
+                disabled={candidateLoading}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-emerald-700 hover:shadow-md hover:shadow-emerald-600/20 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {candidateLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Finding matches…</> : <><Search className="h-4 w-4" /> Find Matching Jobs</>}
+              </button>
             </div>
           </div>
 
-          {/* Results Summary */}
           <div className="flex items-center justify-between px-1">
             <h3 className="text-lg font-semibold text-slate-800">
-              Search Results <span className="ml-1 text-sm font-normal text-slate-400">({filteredJobs.length})</span>
+              Matched Jobs <span className="ml-1 text-sm font-normal text-slate-400">({candidateJobs.length || filteredJobs.length})</span>
             </h3>
-            <span className="text-xs text-slate-400">{internalJobs.length} internal · {externalJobs.length} external</span>
+            <span className="text-xs text-slate-400">{candidateJobs.length > 0 ? 'Profile based results' : 'Fallback matches'}</span>
           </div>
 
           {loading ? (
             <div className="flex items-center justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-emerald-600" /></div>
-          ) : filteredJobs.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-16 text-center">
-              <p className="text-sm text-slate-500">No opportunities match your search. Try a different skill or category.</p>
+          ) : candidateJobs.length > 0 ? (
+            <div className="space-y-3">
+              {candidateJobs.map((job) => (
+                <div key={job.id} className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-emerald-300 hover:shadow-md">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h4 className="font-semibold text-slate-800">{job.title}</h4>
+                          <p className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-500"><Building2 className="h-3.5 w-3.5" /> {job.company}</p>
+                        </div>
+                        <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
+                          <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${sourceColors[job.source] ?? sourceColors.employer}`}>
+                            {job.platform || job.source || 'Live Search'}
+                          </span>
+                          <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${categoryColors[job.category] ?? ''}`}>{job.category}</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-500">
+                        <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> {job.location}</span>
+                        <span className="flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5" /> {job.stipend}</span>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {(job.skills ?? []).map((skill) => <span key={skill} className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{skill}</span>)}
+                      </div>
+
+                      {job.description && <p className="mt-3 text-sm text-slate-500">{job.description}</p>}
+                    </div>
+
+                    <div className="flex flex-row items-center gap-3 sm:flex-col sm:items-end">
+                      <div className="flex flex-col items-center rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 px-4 py-2.5 ring-1 ring-emerald-100">
+                        <span className="flex items-center gap-1 text-xs font-medium text-emerald-700"><Zap className="h-3.5 w-3.5" /> Skill Fit</span>
+                        <span className={`text-2xl font-bold ${calculateFitScore(job) >= 75 ? 'text-emerald-600' : calculateFitScore(job) >= 50 ? 'text-amber-600' : 'text-slate-500'}`}>
+                          {calculateFitScore(job)}%
+                        </span>
+                      </div>
+                      <a href={job.external_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-xl border border-blue-600 bg-white px-4 py-2.5 text-sm font-semibold text-blue-600 transition-all hover:bg-blue-50 hover:shadow-sm">
+                        <ExternalLink className="h-4 w-4" /> Apply
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
-            <div className="space-y-3">
-              {/* Internal Feed Section */}
-              {internalJobs.length > 0 && (
-                <>
-                  <div className="flex items-center gap-2 pt-1">
-                    <Briefcase className="h-4 w-4 text-emerald-600" />
-                    <span className="text-sm font-semibold text-slate-700">Internal Verified Listings</span>
-                    <span className="text-xs text-slate-400">({internalJobs.length})</span>
-                  </div>
-                  {internalJobs.map((job) => <InternalJobCard key={job.id} job={job} fit={calculateAsqFit(job, skillMatchIndex, clinicalHours)} applied={appliedJobIds.has(job.id)} applying={applyingId === job.id} onApply={handleApply} />)}
-                </>
-              )}
-
-              {externalJobs.length > 0 && (
-                <>
-                  <div className="flex items-center gap-2 pt-3">
-                    <Globe className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm font-semibold text-slate-700">Universal Web Skimmer · {liveSearchLoading ? 'Searching RapidAPI…' : 'Live Search Results'}</span>
-                    <span className="text-xs text-slate-400">({externalJobs.length})</span>
-                  </div>
-                  {externalJobs.map((job) => <ExternalJobCard key={job.id} job={job as SearchResultJob} fit={calculateAsqFit(job as Job, skillMatchIndex, clinicalHours)} />)}
-                </>
-              )}
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-16 text-center">
+              <p className="text-sm text-slate-500">No matches found. Try another role, skills, or experience profile.</p>
             </div>
           )}
         </div>
@@ -445,31 +488,24 @@ export function StudentHub({ onToast, clinicalHours, skillMatchIndex, onClinical
             <div className="flex items-center gap-2">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50"><Navigation className="h-5 w-5 text-emerald-600" /></div>
               <div>
-                <h3 className="font-semibold text-slate-800">GPS Practical Hours Logger</h3>
-                <p className="text-xs text-slate-500">Verify on-site attendance</p>
+                <h3 className="font-semibold text-slate-800">Candidate Summary</h3>
+                <p className="text-xs text-slate-500">Profile based matching</p>
               </div>
             </div>
             <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-600">Current Status</span>
-                <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                  gpsStatus === 'verified' ? 'bg-emerald-100 text-emerald-700' :
-                  gpsStatus === 'verifying' ? 'bg-amber-100 text-amber-700' :
-                  gpsStatus === 'error' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'
-                }`}>
-                  {gpsStatus === 'verified' ? 'Verified at Accredited Center' : gpsStatus === 'verifying' ? 'Verifying…' : gpsStatus === 'error' ? 'Verification Failed' : 'Not Checked In'}
-                </span>
+                <span className="text-sm text-slate-600">Role</span>
+                <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700">{targetRole || 'Not set'}</span>
               </div>
-              <div className="mt-3 flex items-baseline gap-2">
-                <span className="text-3xl font-bold text-slate-800">{clinicalHours}</span>
-                <span className="text-sm text-slate-500">total practical hours</span>
+              <div className="mt-3 flex items-baseline justify-between gap-2">
+                <span className="text-sm text-slate-600">Experience</span>
+                <span className="text-sm font-semibold text-slate-800">{experienceValue || '1'} {experienceUnit}</span>
+              </div>
+              <div className="mt-3 flex items-start justify-between gap-2">
+                <span className="text-sm text-slate-600">Skills</span>
+                <span className="max-w-[55%] text-right text-xs font-medium text-slate-700">{skillsInput || 'No skills entered'}</span>
               </div>
             </div>
-            <button onClick={handleGpsCheckIn} disabled={gpsLoading}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition-all hover:bg-emerald-700 hover:shadow-md hover:shadow-emerald-600/20 disabled:opacity-70">
-              {gpsLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Verifying GPS…</> : <><Navigation className="h-4 w-4" /> Verify GPS Attendance</>}
-            </button>
-            <p className="mt-2 text-center text-xs text-slate-400">Each verified check-in adds +4 practical hours</p>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

@@ -24,18 +24,10 @@ const tabs: { id: Tab; label: string; icon: typeof GraduationCap; desc: string }
   { id: 'ministry', label: 'Ministry Analytics', icon: BarChart3, desc: 'National view' },
 ];
 
-const readStoredMetric = (key: string, fallback: number, max: number) => {
-  const stored = localStorage.getItem(key);
-  const value = stored === null ? Number.NaN : Number(stored);
-  return Number.isFinite(value) ? Math.min(max, Math.max(0, value)) : fallback;
-};
-
 function App() {
   const { user, isAuthenticated, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('student');
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const [clinicalHours, setClinicalHours] = useState(() => readStoredMetric('user_clinical_hours', 140, 500));
-  const [skillMatchIndex, setSkillMatchIndex] = useState(() => readStoredMetric('user_skill_score', 88, 100));
   const [refreshKey, setRefreshKey] = useState(0);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
@@ -58,16 +50,6 @@ function App() {
     setAuthModalOpen(true);
     addToast(`Please log in to use ${feature}`, 'Authentication is required for this action.');
   }, [addToast]);
-
-  const updateClinicalHours = useCallback((hours: number) => {
-    setClinicalHours(hours);
-    localStorage.setItem('user_clinical_hours', String(hours));
-  }, []);
-
-  const updateSkillMatchIndex = useCallback((score: number) => {
-    setSkillMatchIndex(score);
-    localStorage.setItem('user_skill_score', String(score));
-  }, []);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -173,11 +155,6 @@ function App() {
         {activeTab === 'student' && (
           <StudentHub
             onToast={addToast}
-            clinicalHours={clinicalHours}
-            skillMatchIndex={skillMatchIndex}
-            onClinicalHoursChange={updateClinicalHours}
-            onClinicalHoursIncrease={(h) => updateClinicalHours(Math.min(500, clinicalHours + h))}
-            onSkillMatchIndexChange={updateSkillMatchIndex}
             onRequireAuth={handleRequireAuth}
           />
         )}

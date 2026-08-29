@@ -19,7 +19,7 @@ import {
 import { supabase, FALLBACK_CHECKINS, FALLBACK_JOBS, type Job, type CheckIn } from '@/lib/supabase';
 import { calculateAsqFit, STUDENT_SKILLS } from '@/lib/asq';
 import { JOB_CATEGORIES, SEARCH_CHIPS, type JobCategory } from '@/lib/skills';
-import { searchJobs, searchJobsLive, deriveSkillTags, type SearchResultJob } from '@/services/jobSearchService';
+import { searchJobs, searchJobsLive, deriveSkillTags, buildRecommendationSuggestions, type SearchResultJob } from '@/services/jobSearchService';
 import { useAuth } from '@/context/AuthContext';
 
 type Props = {
@@ -81,6 +81,8 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
   const [checkins, setCheckins] = useState<CheckIn[]>([]);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'verifying' | 'verified' | 'error'>('idle');
+  const [verifiedClinicalHours, setVerifiedClinicalHours] = useState(34);
+  const [skillMatchIndex, setSkillMatchIndex] = useState(88);
 
   const loadJobs = useCallback(async () => {
     if (!supabase) {
@@ -154,43 +156,44 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
 
   const dynamicSkillTags = useMemo(() => deriveSkillTags(search || 'Ayush healthcare jobs', category), [search, category]);
   const searchSuggestions = useMemo(() => {
-    const suggestedPool = [
-      'AI/ML Engineer',
-      'Machine Learning Engineer',
-      'Python Developer',
-      'Data Analyst',
-      'Clinical Research Associate',
-      'Pharmacovigilance Analyst',
-      'Ayurveda Product Specialist',
-      'React Developer',
-      'NABH Quality Executive',
-      'Panchakarma Therapist',
-      'UX Designer',
-      'Research Scientist',
-      'Clinical Trial Coordinator',
-      'Product Analyst',
-      'Quality Assurance Analyst',
-      'Healthcare Operations Manager',
-      'Public Health Specialist',
-      ...SEARCH_CHIPS,
-      ...recentSearches,
-    ];
+    const query = search.trim();
+    const pool = buildRecommendationSuggestions(query || 'AI/ML Engineer', category);
 
-    const query = search.trim().toLowerCase();
-    if (!query) return [...new Set(suggestedPool)].slice(0, 8);
+    if (!query) return [...new Set([...(pool || []), ...recentSearches, ...SEARCH_CHIPS])].slice(0, 8);
 
+    const normalized = query.toLowerCase();
     return [...new Set([
-      ...suggestedPool.filter((item) => {
+      ...pool.filter((item) => {
         const term = item.toLowerCase();
-        return term.includes(query) || query.includes(term) || term.split(/\s+/).some((part) => part.length > 2 && query.includes(part));
+        return term.includes(normalized) || normalized.includes(term) || term.split(/\s+/).some((part) => part.length > 2 && normalized.includes(part));
       }),
       ...dynamicSkillTags.filter((tag) => {
         const term = tag.toLowerCase();
-        return term.includes(query) || query.includes(term) || term.split(/\s+/).some((part) => part.length > 2 && query.includes(part));
+        return term.includes(normalized) || normalized.includes(term) || term.split(/\s+/).some((part) => part.length > 2 && normalized.includes(part));
       }),
-      ...recentSearches.filter((item) => item.toLowerCase().includes(query) || query.includes(item.toLowerCase())),
+      ...recentSearches.filter((item) => item.toLowerCase().includes(normalized) || normalized.includes(item.toLowerCase())),
     ])].slice(0, 10);
-  }, [search, dynamicSkillTags, recentSearches]);
+  }, [search, category, dynamicSkillTags, recentSearches]);
+
+  const closestSuggestion = useMemo(() => {
+    const query = search.trim();
+    if (!query) return '';
+
+    const suggestions = [...searchSuggestions, ...dynamicSkillTags].filter((item) => item.toLowerCase() !== query.toLowerCase());
+    if (!suggestions.length) return '';
+
+    const normalizedQuery = query.toLowerCase();
+    const bestMatch = suggestions.reduce((best, current) => {
+      const currentText = current.toLowerCase();
+      const currentSimilarity = currentText.includes(normalizedQuery) || normalizedQuery.includes(currentText)
+        ? 6
+        : Math.max(...currentText.split(/\s+/).map((part) => (normalizedQuery.includes(part) ? 3 : 0)));
+
+      return currentSimilarity > best.score ? { value: current, score: currentSimilarity } : best;
+    }, { value: suggestions[0], score: 0 });
+
+    return bestMatch.score > 0 ? bestMatch.value : '';
+  }, [search, dynamicSkillTags, searchSuggestions]);
   const searchedWebJobs = search.trim() ? liveSearchJobs : [];
 
   const filteredJobs = jobs.filter((job) => {
@@ -237,9 +240,10 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
 
   const handleFindMatchingJobs = useCallback(async () => {
     const cleanedRole = targetRole.trim() || 'Ayurvedic Medical Officer';
+    const intent = (search || cleanedRole).trim() || cleanedRole;
     const cleanedSkills = normalizeSkillTerms(skillsInput);
     const experienceText = `${experienceValue || '1'} ${experienceUnit || 'Years'}`;
-    const queryBits = [cleanedRole, ...cleanedSkills, experienceText, category === 'All Skills' ? 'jobs' : category];
+    const queryBits = [intent, ...cleanedSkills, experienceText, category === 'All Skills' ? 'jobs' : category];
     const query = queryBits.filter(Boolean).join(' ');
 
     setCandidateLoading(true);
@@ -251,7 +255,7 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
     } finally {
       setCandidateLoading(false);
     }
-  }, [category, experienceUnit, experienceValue, normalizeSkillTerms, skillsInput, targetRole]);
+  }, [category, experienceUnit, experienceValue, normalizeSkillTerms, search, skillsInput, targetRole]);
 
   const handleApply = async (job: Job) => {
     if (!isAuthenticated) {
@@ -259,6 +263,7 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
       return;
     }
 
+    setSkillMatchIndex((prev) => Math.min(99, prev + 2));
     setApplyingId(job.id);
     const fit = calculateAsqFit(job, 88, 140);
 
@@ -287,7 +292,8 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
     if (!supabase) {
       setGpsLoading(false);
       setGpsStatus('verified');
-      onClinicalHoursIncrease(4);
+      setVerifiedClinicalHours((prev) => prev + 4);
+      setSkillMatchIndex((prev) => Math.min(99, prev + 1));
       onToast('GPS Attendance Verified', '+4 practical hours added in demo mode');
       return;
     }
@@ -311,7 +317,8 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
         if (error || !data) { setGpsStatus('error'); onToast('Check-in failed', 'Could not save attendance record'); return; }
         setCheckins((prev) => [data, ...prev]);
         setGpsStatus('verified');
-        onClinicalHoursIncrease(4);
+        setVerifiedClinicalHours((prev) => prev + 4);
+        setSkillMatchIndex((prev) => Math.min(99, prev + 1));
         onToast('GPS Attendance Verified', `+4 practical hours added at ${locationName}`);
       },
       () => { setGpsLoading(false); setGpsStatus('error'); onToast('GPS permission denied', 'Enable location access to verify attendance'); },
@@ -362,6 +369,50 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
             </div>
 
             <div className="space-y-4">
+              <div className="relative">
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Job interest / Search</label>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="AI/ML Engineer, React Developer, Clinical Research Associate..."
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 pr-10 text-sm text-slate-800 placeholder-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                />
+                <Search className="pointer-events-none absolute right-3 top-[44px] h-4 w-4 text-slate-400" />
+                {search.trim() && searchSuggestions.length > 0 && (
+                  <div className="absolute z-20 mt-2 w-full rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                    {searchSuggestions.slice(0, 6).map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        onClick={() => {
+                          setSearch(suggestion);
+                          setTargetRole(suggestion);
+                          pushRecentSearch(suggestion);
+                        }}
+                        className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-700"
+                      >
+                        <span>{suggestion}</span>
+                        <Search className="h-3.5 w-3.5 text-slate-400" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {closestSuggestion && (
+                  <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                    Did you mean{' '}
+                    <button type="button" className="font-semibold underline underline-offset-2" onClick={() => {
+                      setSearch(closestSuggestion);
+                      setTargetRole(closestSuggestion);
+                      pushRecentSearch(closestSuggestion);
+                    }}>
+                      {closestSuggestion}
+                    </button>
+                    ?
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">Target Job Title / Role</label>
                 <input
@@ -498,18 +549,31 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
                 <p className="text-xs text-slate-500">Profile based matching</p>
               </div>
             </div>
-            <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-600">Role</span>
-                <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700">{targetRole || 'Not set'}</span>
+            <div className="mt-4 space-y-3">
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-600">Role</span>
+                  <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700">{targetRole || 'Not set'}</span>
+                </div>
+                <div className="mt-3 flex items-baseline justify-between gap-2">
+                  <span className="text-sm text-slate-600">Experience</span>
+                  <span className="text-sm font-semibold text-slate-800">{experienceValue || '1'} {experienceUnit}</span>
+                </div>
+                <div className="mt-3 flex items-start justify-between gap-2">
+                  <span className="text-sm text-slate-600">Skills</span>
+                  <span className="max-w-[55%] text-right text-xs font-medium text-slate-700">{skillsInput || 'No skills entered'}</span>
+                </div>
               </div>
-              <div className="mt-3 flex items-baseline justify-between gap-2">
-                <span className="text-sm text-slate-600">Experience</span>
-                <span className="text-sm font-semibold text-slate-800">{experienceValue || '1'} {experienceUnit}</span>
-              </div>
-              <div className="mt-3 flex items-start justify-between gap-2">
-                <span className="text-sm text-slate-600">Skills</span>
-                <span className="max-w-[55%] text-right text-xs font-medium text-slate-700">{skillsInput || 'No skills entered'}</span>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700">Verified hours</p>
+                  <p className="mt-2 text-xl font-bold text-emerald-800">{verifiedClinicalHours}</p>
+                </div>
+                <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-blue-700">Skill index</p>
+                  <p className="mt-2 text-xl font-bold text-blue-800">{skillMatchIndex}%</p>
+                </div>
               </div>
             </div>
           </div>

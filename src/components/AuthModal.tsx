@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Lock, LogIn, Mail, Shield, UserPlus, X } from 'lucide-react';
-import { useAuth, type AuthRole } from '@/context/AuthContext';
+import { Github, Globe, Lock, LogIn, Mail, Shield, UserPlus, X } from 'lucide-react';
+import { useAuth, type AuthRole, STATUS_OPTIONS, SKILL_CATALOG, type UserStatus } from '@/context/AuthContext';
 
 type AuthModalProps = {
   open: boolean;
@@ -16,14 +16,23 @@ const roleOptions: { value: AuthRole; label: string }[] = [
 ];
 
 export function AuthModal({ open, initialMode = 'login', onClose, onToast }: AuthModalProps) {
-  const { login, signup } = useAuth();
+  const { user, login, loginWithProvider, signup } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>(initialMode);
   const [role, setRole] = useState<AuthRole>('student');
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [specialty, setSpecialty] = useState('');
-  const [institution, setInstitution] = useState('');
+  const [status, setStatus] = useState<UserStatus>('Student');
+  const [fullName, setFullName] = useState(user?.fullName ?? '');
+  const [email, setEmail] = useState(user?.email ?? '');
+  const [password, setPassword] = useState(user?.password ?? '');
+  const [specialty, setSpecialty] = useState(user?.specialty ?? '');
+  const [institution, setInstitution] = useState(user?.institution ?? '');
+  const [headline, setHeadline] = useState(user?.headline ?? '');
+  const [location, setLocation] = useState(user?.location ?? 'India');
+  const [bio, setBio] = useState(user?.bio ?? '');
+  const [education, setEducation] = useState(user?.education ?? '');
+  const [experience, setExperience] = useState(user?.experience ?? '');
+  const [portfolio, setPortfolio] = useState(user?.portfolio ?? '');
+  const [availability, setAvailability] = useState(user?.availability ?? 'Available for opportunities');
+  const [selectedSkills, setSelectedSkills] = useState<string[]>(user?.skills ?? ['AI/ML', 'Python']);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -31,7 +40,24 @@ export function AuthModal({ open, initialMode = 'login', onClose, onToast }: Aut
 
   useMemo(() => {
     setMode(initialMode);
-  }, [initialMode]);
+    if (user) {
+      setRole(user.role);
+      setStatus(user.status);
+      setFullName(user.fullName);
+      setEmail(user.email);
+      setPassword(user.password);
+      setSpecialty(user.specialty);
+      setInstitution(user.institution);
+      setHeadline(user.headline);
+      setLocation(user.location);
+      setBio(user.bio);
+      setEducation(user.education);
+      setExperience(user.experience);
+      setPortfolio(user.portfolio);
+      setAvailability(user.availability);
+      setSelectedSkills(user.skills);
+    }
+  }, [initialMode, user]);
 
   if (!open) return null;
 
@@ -58,18 +84,31 @@ export function AuthModal({ open, initialMode = 'login', onClose, onToast }: Aut
       return;
     }
 
-    if (!fullName.trim() || !email.trim() || !password.trim() || !specialty.trim() || !institution.trim()) {
-      setError('Please complete all signup fields.');
+    if (!fullName.trim() || !email.trim() || !password.trim() || !specialty.trim() || !institution.trim() || !selectedSkills.length) {
+      setError('Please complete all signup fields and select at least one skill.');
       return;
     }
 
     try {
       setSubmitting(true);
-      await signup({ fullName, email, password, role, specialty, institution });
-      onToast('Account created', 'Your portal profile has been saved.');
+      await signup({ fullName, email, password, role, status, specialty, institution, skills: selectedSkills, headline, location, bio, education, experience, portfolio, availability });
+      onToast('Account created', 'Your profile has been saved.');
       onClose();
     } catch (signupError) {
       setError(signupError instanceof Error ? signupError.message : 'Unable to create account.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSocialLogin = async (provider: 'google' | 'github') => {
+    try {
+      setSubmitting(true);
+      const user = await loginWithProvider(provider, { fullName: fullName || undefined, role });
+      onToast(`Signed in with ${provider === 'google' ? 'Google' : 'GitHub'}`, `Welcome back, ${user.fullName}`);
+      onClose();
+    } catch (socialError) {
+      setError(socialError instanceof Error ? socialError.message : 'Unable to sign in with provider.');
     } finally {
       setSubmitting(false);
     }
@@ -110,6 +149,32 @@ export function AuthModal({ open, initialMode = 'login', onClose, onToast }: Aut
               Register
             </button>
           </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => handleSocialLogin('google')}
+              disabled={submitting}
+              className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-70"
+            >
+              <Globe className="h-4 w-4" /> Google
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSocialLogin('github')}
+              disabled={submitting}
+              className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-70"
+            >
+              <Github className="h-4 w-4" /> GitHub
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('login')}
+              className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+            >
+              <Mail className="h-4 w-4" /> Email
+            </button>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 p-5">
@@ -139,13 +204,90 @@ export function AuthModal({ open, initialMode = 'login', onClose, onToast }: Aut
           {!isLogin && (
             <>
               <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Current Status</label>
+                <div className="flex flex-wrap gap-2">
+                  {STATUS_OPTIONS.map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => setStatus(option)}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${status === option ? 'border-emerald-500 bg-emerald-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700'}`}
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">Ayush Specialty / Domain</label>
                 <input value={specialty} onChange={(e) => setSpecialty(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="Ayurveda, Pharmacovigilance, AI, etc." />
               </div>
 
               <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Headline</label>
+                <input value={headline} onChange={(e) => setHeadline(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="AI-ready healthcare and Ayush professional" />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">About / Bio</label>
+                <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="Research-oriented healthcare learner focused on AI-enabled clinical workflows and public health." />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Location</label>
+                <input value={location} onChange={(e) => setLocation(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="India" />
+              </div>
+
+              <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">Institution / Organization</label>
                 <input value={institution} onChange={(e) => setInstitution(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="Ayush Stream Academy" />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Education / Qualification</label>
+                <input value={education} onChange={(e) => setEducation(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="BAMS / MSc Clinical Research" />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Experience</label>
+                <input value={experience} onChange={(e) => setExperience(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="2 years internships, research projects, clinical case support" />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Portfolio / LinkedIn</label>
+                <input value={portfolio} onChange={(e) => setPortfolio(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="https://linkedin.com/in/your-profile" />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Availability</label>
+                <input value={availability} onChange={(e) => setAvailability(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="Available for internships and full-time roles" />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Skills</label>
+                <div className="space-y-3">
+                  {SKILL_CATALOG.map((group) => (
+                    <div key={group.category}>
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">{group.category}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {group.skills.map((skill) => {
+                          const active = selectedSkills.includes(skill);
+                          return (
+                            <button
+                              key={skill}
+                              type="button"
+                              onClick={() => setSelectedSkills((prev) => active ? prev.filter((item) => item !== skill) : [...prev, skill].slice(0, 12))}
+                              className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all ${active ? 'border-emerald-500 bg-emerald-600 text-white' : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700'}`}
+                            >
+                              {skill}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </>
           )}

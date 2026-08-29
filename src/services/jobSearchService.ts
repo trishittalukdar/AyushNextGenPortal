@@ -47,6 +47,46 @@ function titleCase(value: string): string {
     .join(' ');
 }
 
+function levenshteinDistance(a: string, b: string): number {
+  const dp = Array.from({ length: a.length + 1 }, () => new Array<number>(b.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i += 1) dp[i][0] = i;
+  for (let j = 0; j <= b.length; j += 1) dp[0][j] = j;
+
+  for (let i = 1; i <= a.length; i += 1) {
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost,
+      );
+    }
+  }
+
+  return dp[a.length][b.length];
+}
+
+function fuzzyCorrection(token: string, candidates: string[]): string[] {
+  const normalizedToken = token.toLowerCase();
+  const matches = new Set<string>();
+
+  for (const candidate of candidates) {
+    const value = candidate.toLowerCase();
+    if (!value) continue;
+    if (normalizedToken === value || value.includes(normalizedToken) || normalizedToken.includes(value)) {
+      matches.add(candidate);
+      continue;
+    }
+
+    const maxAllowed = Math.max(1, Math.ceil(value.length * 0.35));
+    if (levenshteinDistance(normalizedToken, value) <= maxAllowed) {
+      matches.add(candidate);
+    }
+  }
+
+  return Array.from(matches);
+}
+
 function expandSearchTokens(query: string): string[] {
   const cleaned = normalizeText(query || 'Ayush healthcare jobs');
   const tokens = cleaned.split(/\s+/).filter((word) => word.length > 2 && !new Set(['the', 'and', 'for', 'with', 'jobs', 'job', 'role', 'work', 'open', 'apply', 'opportunity', 'careers', 'career', 'in', 'at', 'on', 'of', 'to', 'from', 'any', 'skill', 'search', 'portal', 'vacancy', 'vacancies']).has(word));
@@ -62,12 +102,24 @@ function expandSearchTokens(query: string): string[] {
     'healthcare': ['clinical research', 'hospital operations', 'public health'],
     'developer': ['software engineer', 'developer'],
     'engineer': ['software engineer', 'machine learning engineer', 'data engineer'],
+    'analyst': ['data analyst', 'business analyst', 'research analyst'],
+    'therapist': ['panchakarma therapist', 'ayurveda therapist', 'rehab therapist'],
+    'officer': ['medical officer', 'operations officer', 'public health officer'],
   };
+
+  const candidatePool = new Set<string>([
+    ...ALL_SKILLS.map((skill) => skill.toLowerCase()),
+    ...Object.keys(synonymMap),
+    ...Object.values(synonymMap).flat(),
+    'ai', 'machine learning', 'python', 'react', 'developer', 'engineer', 'research', 'clinical', 'analyst', 'medical officer', 'ayurveda', 'panchakarma', 'healthcare', 'pharmacovigilance', 'data scientist', 'frontend', 'product', 'quality', 'public health', 'operations', 'assistant'
+  ]);
 
   const expanded = new Set<string>(tokens);
   for (const token of tokens) {
     const synonyms = synonymMap[token] ?? [];
     synonyms.forEach((synonym) => expanded.add(synonym));
+
+    fuzzyCorrection(token, Array.from(candidatePool)).forEach((match) => expanded.add(match));
   }
 
   return Array.from(expanded).slice(0, 8);
@@ -91,6 +143,45 @@ export function deriveSkillTags(query: string, category: string = 'All Skills'):
   }
 
   return result.length > 0 ? result : ['Healthcare', 'Research', 'Analytics', 'AI', 'Clinical Research'];
+}
+
+export function buildRecommendationSuggestions(query: string, category: string = 'All Skills'): string[] {
+  const cleaned = (query || '').trim();
+  const normalized = cleaned.toLowerCase();
+  const baseSuggestions = new Set<string>([
+    ...deriveSkillTags(cleaned || 'Ayush healthcare jobs', category),
+    ...SEARCH_SKILLS[(category as SearchCategory) ?? 'All Skills'],
+  ]);
+
+  const roleRules: Record<string, string[]> = {
+    'aiml': ['AI/ML Engineer', 'Machine Learning Engineer', 'Data Scientist', 'ML Ops Engineer'],
+    'ai': ['AI/ML Engineer', 'Computer Vision Engineer', 'NLP Engineer', 'AI Product Analyst'],
+    'ml': ['Machine Learning Engineer', 'ML Researcher', 'AI Engineer', 'Data Scientist'],
+    'python': ['Python Developer', 'Python Data Engineer', 'Python Analyst', 'Back End Engineer'],
+    'react': ['React Developer', 'Frontend Engineer', 'UI Engineer', 'Product Engineer'],
+    'clinical research': ['Clinical Research Associate', 'Clinical Trial Coordinator', 'Pharmacovigilance Analyst', 'Research Scientist'],
+    'ayurveda': ['Ayurveda Product Specialist', 'Panchakarma Therapist', 'Ayush Consultant', 'Ayurvedic Medical Officer'],
+    'healthcare': ['Healthcare Analyst', 'Clinical Operations Executive', 'Public Health Specialist', 'Patient Care Coordinator'],
+    'data': ['Data Analyst', 'BI Analyst', 'Analytics Engineer', 'Research Analyst'],
+    'ux': ['UX Designer', 'Product Designer', 'Research Designer', 'Interaction Designer'],
+    'government': ['Government Policy Analyst', 'Public Health Officer', 'Project Coordinator', 'E-Governance Specialist'],
+  };
+
+  for (const [matcher, suggestions] of Object.entries(roleRules)) {
+    if (normalized.includes(matcher)) {
+      suggestions.forEach((item) => baseSuggestions.add(item));
+    }
+  }
+
+  if (cleaned) {
+    baseSuggestions.add(cleaned);
+    const words = cleaned.split(/\s+/).filter(Boolean);
+    words.forEach((word) => {
+      if (word.length > 2) baseSuggestions.add(titleCase(word));
+    });
+  }
+
+  return Array.from(baseSuggestions).filter(Boolean).slice(0, 10);
 }
 
 export function resolveCategoryForQuery(query: string, selectedCategory: string): string {
@@ -187,10 +278,10 @@ export function searchJobs(query: string, category: string = 'All Skills', limit
     location: index % 2 === 0 ? 'India' : 'Remote / Hybrid',
     stipend: '₹35,000 - ₹60,000/mo',
     skills: tags.length > 0 ? tags : ['Healthcare', 'Research', 'Analytics'],
-    description: `Search-driven opportunity for ${safeQuery} and related skills across major hiring channels, with direct access to ${platform.label} results.`,
+    description: `Search-driven opportunity for ${safeQuery} and related skills across major hiring channels.`,
     source: platform.source,
     category: resolvedCategory,
-    external_url: platform.urlBuilder(safeQuery),
+    external_url: '',
     platform: platform.label,
     created_at: new Date().toISOString(),
   }));
@@ -203,6 +294,33 @@ function textValue(job: RapidApiJob, keys: string[], fallback: string): string {
     if (typeof value === 'number') return String(value);
   }
   return fallback;
+}
+
+function isDirectJobLink(value: string): boolean {
+  const link = value.trim();
+  if (!link || !/^https?:\/\//i.test(link)) return false;
+
+  try {
+    const url = new URL(link);
+    const pathname = url.pathname.toLowerCase();
+    const hasSearchParams = url.searchParams.has('q') || url.searchParams.has('keywords') || url.searchParams.has('query') || url.searchParams.has('search') || url.searchParams.has('text');
+    return !pathname.includes('/search') && !pathname.includes('/jobs/search') && !pathname.includes('/jobs/search/') && !hasSearchParams;
+  } catch {
+    return false;
+  }
+}
+
+function directJobLink(job: RapidApiJob): string {
+  const candidates = [
+    textValue(job, ['job_apply_link', 'apply_link', 'job_url', 'url', 'link', 'page_url', 'job_post_url'], ''),
+    textValue(job, ['job_apply_link', 'apply_link', 'url', 'link', 'page_url', 'job_post_url'], ''),
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate && isDirectJobLink(candidate)) return candidate;
+  }
+
+  return '';
 }
 
 function listValue(job: RapidApiJob, keys: string[], fallback: string[]): string[] {
@@ -231,7 +349,7 @@ function normalizeJSearchJobs(payload: unknown, query: string, category: string)
     const description = textValue(job, ['job_description', 'description', 'summary', 'snippet'], `Opportunity for ${query}.`);
     const publisher = textValue(job, ['publisher_name', 'job_publisher', 'publisher', 'source'], 'JSearch');
     const skills = listValue(job, ['job_required_skills', 'skills', 'skill_set', 'technologies'], [query, 'Healthcare']);
-    const applyLink = textValue(job, ['job_apply_link', 'apply_link', 'job_url', 'url', 'link'], '');
+    const applyLink = directJobLink(job);
 
     return {
       id: textValue(job, ['job_id', 'id', 'position_id'], `${publisher}-${index}-${title}`),

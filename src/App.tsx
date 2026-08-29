@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   GraduationCap,
   Briefcase,
@@ -8,6 +8,8 @@ import {
   UserPlus,
   LogOut,
   User,
+  Settings,
+  Save,
 } from 'lucide-react';
 import { StudentHub } from './components/StudentHub';
 import { EmployerPortal } from './components/EmployerPortal';
@@ -25,12 +27,27 @@ const tabs: { id: Tab; label: string; icon: typeof GraduationCap; desc: string }
 ];
 
 function App() {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, logout, updateProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('student');
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [profileEditorOpen, setProfileEditorOpen] = useState(false);
+  const [profileDraft, setProfileDraft] = useState(() => ({
+    fullName: user?.fullName ?? '',
+    status: user?.status ?? 'Student',
+    specialty: user?.specialty ?? '',
+    institution: user?.institution ?? '',
+    location: user?.location ?? 'India',
+    headline: user?.headline ?? '',
+    bio: user?.bio ?? '',
+    education: user?.education ?? '',
+    experience: user?.experience ?? '',
+    portfolio: user?.portfolio ?? '',
+    availability: user?.availability ?? 'Open to opportunities',
+    skills: user?.skills ?? [],
+  }));
 
   const addToast = useCallback((message: string, submessage?: string) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -50,6 +67,44 @@ function App() {
     setAuthModalOpen(true);
     addToast(`Please log in to use ${feature}`, 'Authentication is required for this action.');
   }, [addToast]);
+
+  useMemo(() => {
+    if (!user) return;
+    setProfileDraft({
+      fullName: user.fullName,
+      status: user.status,
+      specialty: user.specialty,
+      institution: user.institution,
+      location: user.location,
+      headline: user.headline,
+      bio: user.bio,
+      education: user.education,
+      experience: user.experience,
+      portfolio: user.portfolio,
+      availability: user.availability,
+      skills: user.skills,
+    });
+  }, [user]);
+
+  const handleProfileSave = useCallback(async () => {
+    if (!user) return;
+    await updateProfile({
+      fullName: profileDraft.fullName,
+      status: profileDraft.status,
+      specialty: profileDraft.specialty,
+      institution: profileDraft.institution,
+      location: profileDraft.location,
+      headline: profileDraft.headline,
+      bio: profileDraft.bio,
+      education: profileDraft.education,
+      experience: profileDraft.experience,
+      portfolio: profileDraft.portfolio,
+      availability: profileDraft.availability,
+      skills: profileDraft.skills,
+    });
+    addToast('Profile updated', 'Your account details have been saved.');
+    setProfileEditorOpen(false);
+  }, [addToast, profileDraft, updateProfile, user]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -152,6 +207,159 @@ function App() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+        {isAuthenticated && (
+          <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                  <Settings className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">My Account</p>
+                  <h2 className="text-xl font-bold text-slate-800">{user?.fullName}</h2>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">{user?.status ?? 'Student'}</span>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{user?.role ?? 'student'}</span>
+                <button
+                  onClick={() => setProfileEditorOpen((prev) => !prev)}
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+                >
+                  {profileEditorOpen ? 'Close editor' : 'Edit profile'}
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-4">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Headline</p>
+                <p className="mt-2 text-sm font-medium text-slate-700">{user?.headline ?? 'Career-focused learner'}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Location</p>
+                <p className="mt-2 text-sm font-medium text-slate-700">{user?.location ?? 'India'}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Availability</p>
+                <p className="mt-2 text-sm font-medium text-slate-700">{user?.availability ?? 'Open to opportunities'}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Skills</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {(user?.skills ?? []).slice(0, 6).map((skill) => (
+                    <span key={skill} className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700 ring-1 ring-slate-200">{skill}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">About</p>
+                <p className="mt-2 text-sm text-slate-600">{user?.bio ?? 'Career-focused professional building a stronger profile.'}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Education</p>
+                <p className="mt-2 text-sm text-slate-600">{user?.education ?? 'Education details not added yet'}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Portfolio</p>
+                <p className="mt-2 text-sm text-slate-600">{user?.portfolio ?? 'https://example.com/portfolio'}</p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {isAuthenticated && profileEditorOpen && (
+          <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Professional profile</p>
+                <h3 className="text-xl font-bold text-slate-800">Edit your profile</h3>
+              </div>
+              <button
+                onClick={handleProfileSave}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+              >
+                <Save className="h-4 w-4" /> Save changes
+              </button>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block text-sm text-slate-700">
+                <span className="mb-1.5 block font-medium">Full name</span>
+                <input value={profileDraft.fullName} onChange={(e) => setProfileDraft((prev) => ({ ...prev, fullName: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
+              </label>
+
+              <label className="block text-sm text-slate-700">
+                <span className="mb-1.5 block font-medium">Status</span>
+                <select value={profileDraft.status} onChange={(e) => setProfileDraft((prev) => ({ ...prev, status: e.target.value as typeof prev.status }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20">
+                  <option value="Student">Student</option>
+                  <option value="Unemployed">Unemployed</option>
+                  <option value="Working Professional">Working Professional</option>
+                  <option value="Freelancer">Freelancer</option>
+                  <option value="Career Break">Career Break</option>
+                </select>
+              </label>
+
+              <label className="block text-sm text-slate-700">
+                <span className="mb-1.5 block font-medium">Headline</span>
+                <input value={profileDraft.headline} onChange={(e) => setProfileDraft((prev) => ({ ...prev, headline: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
+              </label>
+
+              <label className="block text-sm text-slate-700">
+                <span className="mb-1.5 block font-medium">Location</span>
+                <input value={profileDraft.location} onChange={(e) => setProfileDraft((prev) => ({ ...prev, location: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
+              </label>
+
+              <label className="block text-sm text-slate-700 md:col-span-2">
+                <span className="mb-1.5 block font-medium">Bio</span>
+                <textarea value={profileDraft.bio} onChange={(e) => setProfileDraft((prev) => ({ ...prev, bio: e.target.value }))} rows={3} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
+              </label>
+
+              <label className="block text-sm text-slate-700">
+                <span className="mb-1.5 block font-medium">Specialty</span>
+                <input value={profileDraft.specialty} onChange={(e) => setProfileDraft((prev) => ({ ...prev, specialty: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
+              </label>
+
+              <label className="block text-sm text-slate-700">
+                <span className="mb-1.5 block font-medium">Institution</span>
+                <input value={profileDraft.institution} onChange={(e) => setProfileDraft((prev) => ({ ...prev, institution: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
+              </label>
+
+              <label className="block text-sm text-slate-700">
+                <span className="mb-1.5 block font-medium">Education</span>
+                <input value={profileDraft.education} onChange={(e) => setProfileDraft((prev) => ({ ...prev, education: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
+              </label>
+
+              <label className="block text-sm text-slate-700">
+                <span className="mb-1.5 block font-medium">Experience</span>
+                <input value={profileDraft.experience} onChange={(e) => setProfileDraft((prev) => ({ ...prev, experience: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
+              </label>
+
+              <label className="block text-sm text-slate-700">
+                <span className="mb-1.5 block font-medium">Portfolio / LinkedIn</span>
+                <input value={profileDraft.portfolio} onChange={(e) => setProfileDraft((prev) => ({ ...prev, portfolio: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
+              </label>
+
+              <label className="block text-sm text-slate-700">
+                <span className="mb-1.5 block font-medium">Availability</span>
+                <input value={profileDraft.availability} onChange={(e) => setProfileDraft((prev) => ({ ...prev, availability: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
+              </label>
+
+              <div className="md:col-span-2">
+                <p className="mb-2 text-sm font-medium text-slate-700">Selected skills</p>
+                <div className="flex flex-wrap gap-2">
+                  {(profileDraft.skills.length ? profileDraft.skills : ['AI/ML', 'Research']).map((skill) => (
+                    <span key={skill} className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">{skill}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
         {activeTab === 'student' && (
           <StudentHub
             onToast={addToast}

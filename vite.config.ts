@@ -45,8 +45,8 @@ function localApiPlugin(): PluginOption {
   };
 }
 
-export default defineConfig({
-  base: process.env.VITE_BASE_PATH ?? '/',
+export default defineConfig(({ command }) => ({
+  base: command === 'build' ? '/AyushNextGenPortal/' : '/',
   plugins: [react(), localApiPlugin()],
   resolve: {
     alias: {
@@ -58,4 +58,4 @@ export default defineConfig({
     allowedHosts: true,
     port: 5173,
   },
-});
+}));

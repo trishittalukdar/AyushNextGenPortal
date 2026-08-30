@@ -45,7 +45,7 @@ function localApiPlugin(): PluginOption {
   };
 }
 
-export default defineConfig({
+export default defineConfig(() => ({
   base: process.env.VITE_BASE_PATH ?? '/',
   plugins: [react(), localApiPlugin()],
   resolve: {
@@ -58,4 +58,4 @@ export default defineConfig({
     allowedHosts: true,
     port: 5173,
   },
-});
+}));

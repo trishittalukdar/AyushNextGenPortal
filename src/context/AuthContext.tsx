@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { hasSupabaseConfig, supabase } from '@/lib/supabase';
+import { createContext, useContext, useEffect, useState } from 'react';
+import type { User } from '@supabase/supabase-js';
+import { APP_BASE_URL, hasSupabaseConfig, supabase } from '@/lib/supabase';
 
 export type AuthRole = 'student' | 'employer' | 'ministry';
 export type AuthProvider = 'google' | 'github' | 'email';
@@ -77,8 +78,9 @@ const STORAGE_KEY = 'ayush-nextgen-current-user';
 const USERS_KEY = 'ayush-nextgen-users';
 
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+const normalizeRole = (value?: AuthRole): AuthRole => (value === 'employer' || value === 'ministry' ? value : 'student');
 
-function buildSupabaseUserProfile(user: any, preferredRole: AuthRole = 'student'): UserProfile {
+function buildSupabaseUserProfile(user: User, preferredRole: AuthRole = 'student'): UserProfile {
   const meta = user?.user_metadata ?? {};
   const safeEmail = (user?.email || meta.email || `${preferredRole}-user@ayushportal.local`).trim().toLowerCase();
 
@@ -167,9 +169,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    if (hasSupabaseConfig && supabase) {
+    const client = supabase;
+    if (hasSupabaseConfig && client) {
       const hydrateSupabaseSession = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error } = await client.auth.getSession();
+        if (error) {
+          console.error('Supabase session hydration error:', error.message);
+          return;
+        }
+
         if (session?.user) {
           const profile = buildSupabaseUserProfile(session.user, 'student');
           setUser(profile);
@@ -178,7 +186,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
 
       hydrateSupabaseSession();
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_OUT') {
           setUser(null);
           window.localStorage.removeItem(STORAGE_KEY);
@@ -198,6 +206,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async ({ email, password, role }: LoginInput): Promise<UserProfile> => {
     const normalizedEmail = email.trim().toLowerCase();
+    const normalizedRole = normalizeRole(role);
+
+    if (!normalizedEmail || !isValidEmail(normalizedEmail)) {
+      throw new Error('Please enter a valid email address.');
+    }
+
+    if (!password || password.trim().length < 6) {
+      throw new Error('Password must be at least 6 characters long.');
+    }
 
     if (hasSupabaseConfig && supabase) {
       const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
@@ -208,18 +225,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         fullName: data.user.user_metadata?.full_name || 'Supabase User',
         email: data.user.email || normalizedEmail,
         password,
-        role: role || 'student',
-        status: 'Student',
-        specialty: 'Career-focused professional',
-        institution: 'Supabase authenticated account',
-        skills: ['AI/ML', 'Research', 'Data Analysis'],
-        headline: 'Career-focused learner',
-        location: 'India',
-        bio: 'Verified Supabase user profile.',
-        education: 'Profile details pending',
-        experience: 'Early career profile',
-        portfolio: 'https://example.com/portfolio',
-        availability: 'Open to opportunities',
+        role: normalizeRole((data.user.user_metadata?.role as AuthRole) || normalizedRole),
+        status: (data.user.user_metadata?.status as UserStatus) || 'Student',
+        specialty: data.user.user_metadata?.specialty || 'Career-focused professional',
+        institution: data.user.user_metadata?.institution || 'Supabase authenticated account',
+        skills: Array.isArray(data.user.user_metadata?.skills) ? data.user.user_metadata.skills : ['AI/ML', 'Research', 'Data Analysis'],
+        headline: data.user.user_metadata?.headline || 'Career-focused learner',
+        location: data.user.user_metadata?.location || 'India',
+        bio: data.user.user_metadata?.bio || 'Verified Supabase user profile.',
+        education: data.user.user_metadata?.education || 'Profile details pending',
+        experience: data.user.user_metadata?.experience || 'Early career profile',
+        portfolio: data.user.user_metadata?.portfolio || 'https://example.com/portfolio',
+        availability: data.user.user_metadata?.availability || 'Open to opportunities',
         asqScore: 88,
         skillMatchIndex: 88,
         verifiedClinicalHours: 34,
@@ -237,7 +254,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       (entry) =>
         entry.email.toLowerCase() === normalizedEmail &&
         entry.password === password &&
-        (!role || entry.role === role)
+        (!normalizedRole || entry.role === normalizedRole)
     );
 
     if (!matchedUser) {
@@ -254,22 +271,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loginWithProvider = async (provider: AuthProvider, payload?: Partial<Pick<UserProfile, 'fullName' | 'email' | 'role'>>): Promise<UserProfile> => {
     const safeName = (payload?.fullName || `${provider.charAt(0).toUpperCase()}${provider.slice(1)} User`).trim();
     const safeEmail = (payload?.email || '').trim().toLowerCase();
-    const safeRole = (payload?.role || 'student') as AuthRole;
+    const safeRole = normalizeRole(payload?.role || 'student');
 
-    if (hasSupabaseConfig && supabase) {
-      const redirectUrl = `${window.location.origin}${window.location.pathname}`;
+    const client = supabase;
+    if (hasSupabaseConfig && client && (provider === 'google' || provider === 'github')) {
       const providerOptions: Record<string, unknown> = {
-        redirectTo: redirectUrl,
+        redirectTo: APP_BASE_URL,
       };
 
       if (provider === 'google') {
         providerOptions.queryParams = {
           access_type: 'offline',
-          prompt: 'consent select_account',
+          prompt: 'select_account',
         };
       }
 
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await client.auth.signInWithOAuth({
         provider,
         options: providerOptions,
       });
@@ -281,7 +298,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return {
         id: `provider-${provider}-${Date.now()}`,
-        fullName: safeName,
+        fullName: safeName || 'Provider User',
         email: safeEmail || `${provider}-pending@ayushportal.local`,
         password: `${provider}-oauth`,
         role: safeRole,
@@ -515,18 +532,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const value = useMemo<AuthContextValue>(
-    () => ({
-      user,
-      isAuthenticated: Boolean(user),
-      login,
-      loginWithProvider,
-      signup,
-      updateProfile,
-      logout,
-    }),
-    [user]
-  );
+  const value: AuthContextValue = {
+    user,
+    isAuthenticated: Boolean(user),
+    login,
+    loginWithProvider,
+    signup,
+    updateProfile,
+    logout,
+  };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

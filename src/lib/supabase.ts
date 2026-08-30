@@ -1,8 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
 
+const getAppBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_APP_URL?.trim();
+  if (envUrl) return envUrl.replace(/\/$/, '');
+  if (typeof window !== 'undefined' && window.location?.origin) return window.location.origin;
+  return 'http://localhost:5173';
+};
+
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() ?? '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim() ?? '';
 
+export const APP_BASE_URL = getAppBaseUrl();
 export const hasSupabaseConfig = Boolean(supabaseUrl && supabaseAnonKey);
 
 export const supabase = hasSupabaseConfig ? createClient(supabaseUrl, supabaseAnonKey) : null;

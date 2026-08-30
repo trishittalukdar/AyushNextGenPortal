@@ -7,18 +7,15 @@ import {
   Zap,
   Navigation,
   Clock,
-  Award,
   GraduationCap,
   CheckCircle2,
   Loader2,
   ExternalLink,
-  Briefcase,
-  Filter,
   Globe,
 } from 'lucide-react';
 import { supabase, FALLBACK_CHECKINS, FALLBACK_JOBS, type Job, type CheckIn } from '@/lib/supabase';
 import { calculateAsqFit, STUDENT_SKILLS } from '@/lib/asq';
-import { JOB_CATEGORIES, SEARCH_CHIPS, type JobCategory } from '@/lib/skills';
+import { SEARCH_CHIPS } from '@/lib/skills';
 import { searchJobs, searchJobsLive, deriveSkillTags, buildRecommendationSuggestions, type SearchResultJob } from '@/services/jobSearchService';
 import { useAuth } from '@/context/AuthContext';
 
@@ -32,39 +29,28 @@ const STUDENT = {
   institution: 'Ayush Stream Academy',
 };
 
-const sourceLabels: Record<string, string> = {
-  linkedin: 'LinkedIn',
-  naukri: 'Naukri',
-  ncs: 'National Career Service',
-  indeed: 'Indeed',
-  glassdoor: 'Glassdoor',
-  employer: 'Direct from Employer',
-};
-
 const sourceColors: Record<string, string> = {
-  linkedin: 'bg-blue-50 text-blue-700 border-blue-200',
-  naukri: 'bg-amber-50 text-amber-700 border-amber-200',
-  ncs: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  indeed: 'bg-slate-100 text-slate-700 border-slate-300',
-  glassdoor: 'bg-green-50 text-green-700 border-green-200',
-  employer: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+  linkedin: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800',
+  naukri: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800',
+  ncs: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800',
+  indeed: 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
+  glassdoor: 'bg-green-50 text-green-700 border-green-200 dark:bg-green-950/50 dark:text-green-300 dark:border-green-800',
+  employer: 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700',
 };
 
 const categoryColors: Record<string, string> = {
-  'Tech/Software': 'bg-indigo-50 text-indigo-600 border-indigo-200',
-  'Healthcare & Ayush': 'bg-teal-50 text-teal-600 border-teal-200',
-  'Core Engineering': 'bg-orange-50 text-orange-600 border-orange-200',
-  'Business & Finance': 'bg-rose-50 text-rose-600 border-rose-200',
-  'Government & Public': 'bg-slate-100 text-slate-600 border-slate-300',
+  'Tech/Software': 'bg-indigo-50 text-indigo-600 border-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800',
+  'Healthcare & Ayush': 'bg-teal-50 text-teal-600 border-teal-200 dark:bg-teal-950/50 dark:text-teal-300 dark:border-teal-800',
+  'Core Engineering': 'bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-950/50 dark:text-orange-300 dark:border-orange-800',
+  'Business & Finance': 'bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800',
+  'Government & Public': 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
 };
-
-const isExternal = (job: Job) => job.source !== 'employer' && !!job.external_url;
 
 export function StudentHub({ onToast, onRequireAuth }: Props) {
   const { isAuthenticated, user, updateProfile } = useAuth();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [search, setSearch] = useState('');
-  const [category, setCategory] = useState<string>('All Skills');
+  const category = 'All Skills';
   const [loading, setLoading] = useState(true);
   const [liveSearchJobs, setLiveSearchJobs] = useState<SearchResultJob[]>([]);
   const [candidateJobs, setCandidateJobs] = useState<SearchResultJob[]>([]);
@@ -75,10 +61,9 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
   const [skillsInput, setSkillsInput] = useState('Panchakarma, Clinical Diagnosis, Herbal Formulation');
   const [experienceValue, setExperienceValue] = useState('2');
   const [experienceUnit, setExperienceUnit] = useState<'Days' | 'Months' | 'Years'>('Years');
+  const [checkins, setCheckins] = useState<CheckIn[]>([]);
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [appliedJobIds, setAppliedJobIds] = useState<Set<string>>(new Set());
-
-  const [checkins, setCheckins] = useState<CheckIn[]>([]);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'verifying' | 'verified' | 'error'>('idle');
   const [verifiedClinicalHours, setVerifiedClinicalHours] = useState(user?.verifiedClinicalHours ?? 34);
@@ -125,7 +110,11 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
     }
 
     const { data, error } = await supabase.from('jobs').select('*').order('created_at', { ascending: false });
-    if (error) { console.error('Failed to load jobs', error); return; }
+    if (error) {
+      setJobs(FALLBACK_JOBS);
+      setLoading(false);
+      return;
+    }
     setJobs(data ?? []);
     setLoading(false);
   }, []);
@@ -133,13 +122,11 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
   const loadCheckins = useCallback(async () => {
     if (!supabase) {
       setCheckins(FALLBACK_CHECKINS);
-      setGpsStatus('verified');
       return;
     }
 
     const { data } = await supabase.from('clinical_checkins').select('*').order('created_at', { ascending: false });
     setCheckins(data ?? []);
-    if (data && data.length > 0) setGpsStatus('verified');
   }, []);
 
   useEffect(() => { loadJobs(); loadCheckins(); }, [loadJobs, loadCheckins]);
@@ -228,21 +215,14 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
     return bestMatch.score > 0 ? bestMatch.value : '';
   }, [search, dynamicSkillTags, searchSuggestions]);
   const searchedWebJobs = search.trim() ? liveSearchJobs : [];
-
   const filteredJobs = jobs.filter((job) => {
-    const catMatch = category === 'All Skills' || job.category === category;
-    if (!catMatch) return false;
     if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return (
-      job.title.toLowerCase().includes(q) ||
-      job.company.toLowerCase().includes(q) ||
-      job.skills.some((s) => s.toLowerCase().includes(q))
-    );
+    const query = search.toLowerCase();
+    return job.title.toLowerCase().includes(query)
+      || job.company.toLowerCase().includes(query)
+      || job.skills.some((skill) => skill.toLowerCase().includes(query));
   });
-
-  const internalJobs = filteredJobs.filter((j) => j.source === 'employer');
-  const externalJobs = search.trim() ? searchedWebJobs : filteredJobs.filter((j) => j.source !== 'employer');
+  const internalJobs = filteredJobs.filter((job) => job.source === 'employer');
 
   const normalizeSkillTerms = useCallback((value: string) => {
     return value
@@ -345,9 +325,15 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
     setGpsStatus('verifying');
     navigator.geolocation.getCurrentPosition(
       async (position) => {
+        const client = supabase;
+        if (!client) {
+          setGpsLoading(false);
+          setGpsStatus('verified');
+          return;
+        }
         const { latitude, longitude } = position.coords;
         const locationName = 'Accredited Practical Training Centre';
-        const { data, error } = await supabase
+        const { data, error } = await client
           .from('clinical_checkins')
           .insert({ location_name: locationName, latitude, longitude, hours_added: 4, verified: true })
           .select().single();
@@ -400,28 +386,28 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Search + Job Feed */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Candidate Skill Profile</p>
-                <h3 className="mt-1 text-xl font-bold text-slate-800">Find your best-matched jobs</h3>
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Candidate Skill Profile</p>
+                <h3 className="mt-1 text-xl font-bold text-slate-800 dark:text-slate-100">Find your best-matched jobs</h3>
               </div>
-              <div className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">Live match</div>
+              <div className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">Live match</div>
             </div>
 
             <div className="space-y-4">
               <div className="relative">
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Job interest / Search</label>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Job interest / Search</label>
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="AI/ML Engineer, React Developer, Clinical Research Associate..."
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 pr-10 text-sm text-slate-800 placeholder-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 pr-10 text-sm text-slate-800 placeholder-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:bg-slate-800"
                 />
                 <Search className="pointer-events-none absolute right-3 top-[44px] h-4 w-4 text-slate-400" />
                 {search.trim() && searchSuggestions.length > 0 && (
-                  <div className="absolute z-20 mt-2 w-full rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                  <div className="absolute z-20 mt-2 w-full rounded-xl border border-slate-200 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-800">
                     {searchSuggestions.slice(0, 6).map((suggestion) => (
                       <button
                         key={suggestion}
@@ -431,7 +417,7 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
                           setTargetRole(suggestion);
                           pushRecentSearch(suggestion);
                         }}
-                        className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-700"
+                        className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-emerald-300"
                       >
                         <span>{suggestion}</span>
                         <Search className="h-3.5 w-3.5 text-slate-400" />
@@ -440,7 +426,7 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
                   </div>
                 )}
                 {closestSuggestion && (
-                  <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
                     Did you mean{' '}
                     <button type="button" className="font-semibold underline underline-offset-2" onClick={() => {
                       setSearch(closestSuggestion);
@@ -455,45 +441,45 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Target Job Title / Role</label>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Target Job Title / Role</label>
                 <input
                   type="text"
                   value={targetRole}
                   onChange={(e) => setTargetRole(e.target.value)}
                   placeholder="Ayurvedic Medical Officer"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:bg-slate-800"
                 />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Key Skills</label>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Key Skills</label>
                 <textarea
                   value={skillsInput}
                   onChange={(e) => setSkillsInput(e.target.value)}
                   placeholder="Panchakarma, Clinical Diagnosis, Herbal Formulation"
                   rows={3}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:bg-slate-800"
                 />
               </div>
 
               <div className="grid gap-3 sm:grid-cols-[1fr_150px]">
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Experience Duration</label>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Experience Duration</label>
                   <input
                     type="number"
                     min="0"
                     value={experienceValue}
                     onChange={(e) => setExperienceValue(e.target.value)}
                     placeholder="2"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:bg-slate-800"
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Unit</label>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Unit</label>
                   <select
                     value={experienceUnit}
                     onChange={(e) => setExperienceUnit(e.target.value as 'Days' | 'Months' | 'Years')}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:bg-slate-800"
                   >
                     <option value="Days">Days</option>
                     <option value="Months">Months</option>
@@ -513,10 +499,10 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
           </div>
 
           <div className="flex items-center justify-between px-1">
-            <h3 className="text-lg font-semibold text-slate-800">
-              Matched Jobs <span className="ml-1 text-sm font-normal text-slate-400">({candidateJobs.length || filteredJobs.length})</span>
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+              Matched Jobs <span className="ml-1 text-sm font-normal text-slate-400 dark:text-slate-500">({candidateJobs.length || internalJobs.length})</span>
             </h3>
-            <span className="text-xs text-slate-400">{candidateJobs.length > 0 ? 'Profile based results' : 'Fallback matches'}</span>
+            <span className="text-xs text-slate-400 dark:text-slate-500">{candidateJobs.length > 0 ? 'Profile based results' : 'Fallback matches'}</span>
           </div>
 
           {loading ? (
@@ -524,13 +510,13 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
           ) : candidateJobs.length > 0 ? (
             <div className="space-y-3">
               {candidateJobs.map((job) => (
-                <div key={job.id} className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-emerald-300 hover:shadow-md">
+                <div key={job.id} className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-emerald-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-emerald-600">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex-1">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <h4 className="font-semibold text-slate-800">{job.title}</h4>
-                          <p className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-500"><Building2 className="h-3.5 w-3.5" /> {job.company}</p>
+                          <h4 className="font-semibold text-slate-800 dark:text-slate-100">{job.title}</h4>
+                          <p className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400"><Building2 className="h-3.5 w-3.5" /> {job.company}</p>
                         </div>
                         <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
                           <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${sourceColors[job.source] ?? sourceColors.employer}`}>
@@ -540,31 +526,31 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
                         </div>
                       </div>
 
-                      <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-500">
+                      <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-500 dark:text-slate-400">
                         <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> {job.location}</span>
                         <span className="flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5" /> {job.stipend}</span>
                       </div>
 
                       <div className="mt-3 flex flex-wrap gap-1.5">
-                        {(job.skills ?? []).map((skill) => <span key={skill} className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{skill}</span>)}
+                        {(job.skills ?? []).map((skill) => <span key={skill} className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">{skill}</span>)}
                       </div>
 
-                      {job.description && <p className="mt-3 text-sm text-slate-500">{job.description}</p>}
+                      {job.description && <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">{job.description}</p>}
                     </div>
 
                     <div className="flex flex-row items-center gap-3 sm:flex-col sm:items-end">
-                      <div className="flex flex-col items-center rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 px-4 py-2.5 ring-1 ring-emerald-100">
-                        <span className="flex items-center gap-1 text-xs font-medium text-emerald-700"><Zap className="h-3.5 w-3.5" /> Skill Fit</span>
-                        <span className={`text-2xl font-bold ${calculateFitScore(job) >= 75 ? 'text-emerald-600' : calculateFitScore(job) >= 50 ? 'text-amber-600' : 'text-slate-500'}`}>
+                      <div className="flex flex-col items-center rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 px-4 py-2.5 ring-1 ring-emerald-100 dark:from-emerald-950/40 dark:to-teal-950/40 dark:ring-emerald-900/40">
+                        <span className="flex items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-300"><Zap className="h-3.5 w-3.5" /> Skill Fit</span>
+                        <span className={`text-2xl font-bold ${calculateFitScore(job) >= 75 ? 'text-emerald-600 dark:text-emerald-400' : calculateFitScore(job) >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}>
                           {calculateFitScore(job)}%
                         </span>
                       </div>
                       {job.external_url ? (
-                        <a href={job.external_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-xl border border-blue-600 bg-white px-4 py-2.5 text-sm font-semibold text-blue-600 transition-all hover:bg-blue-50 hover:shadow-sm">
+                        <a href={job.external_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 rounded-xl border border-blue-600 bg-white px-4 py-2.5 text-sm font-semibold text-blue-600 transition-all hover:bg-blue-50 hover:shadow-sm dark:border-blue-500 dark:bg-slate-800 dark:text-blue-300 dark:hover:bg-slate-700">
                           <ExternalLink className="h-4 w-4" /> Apply
                         </a>
                       ) : (
-                        <button disabled className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-400">
+                        <button disabled className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-400 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-600">
                           <ExternalLink className="h-4 w-4" /> Apply
                         </button>
                       )}
@@ -573,20 +559,33 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
                 </div>
               ))}
             </div>
+          ) : internalJobs.length > 0 ? (
+            <div className="space-y-3">
+              {internalJobs.map((job) => (
+                <InternalJobCard
+                  key={job.id}
+                  job={job}
+                  fit={calculateAsqFit(job, skillMatchIndex, verifiedClinicalHours)}
+                  applying={applyingId === job.id}
+                  applied={appliedJobIds.has(job.id)}
+                  onApply={handleApply}
+                />
+              ))}
+            </div>
           ) : (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-16 text-center">
-              <p className="text-sm text-slate-500">No matches found. Try another role, skills, or experience profile.</p>
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-16 text-center dark:border-slate-800 dark:bg-slate-900">
+              <p className="text-sm text-slate-500 dark:text-slate-400">No matches found. Try another role, skills, or experience profile.</p>
             </div>
           )}
         </div>
 
         {search.trim() && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-800">
-                Live Web Results <span className="ml-1 text-sm font-normal text-slate-400">({searchedWebJobs.length})</span>
+              <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+                Live Web Results <span className="ml-1 text-sm font-normal text-slate-400 dark:text-slate-500">({searchedWebJobs.length})</span>
               </h3>
-              <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-700">
+              <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
                 {liveSearchLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Searching…</> : <><Globe className="h-4 w-4" /> Across the web</>}
               </span>
             </div>
@@ -594,7 +593,7 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
             {liveSearchLoading && searchedWebJobs.length === 0 ? (
               <div className="space-y-3">
                 {[0, 1, 2].map((i) => (
-                  <div key={i} className="h-28 animate-pulse rounded-xl bg-slate-100" />
+                  <div key={i} className="h-28 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
                 ))}
               </div>
             ) : searchedWebJobs.length > 0 ? (
@@ -604,79 +603,88 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
                 ))}
               </div>
             ) : (
-              <p className="py-8 text-center text-sm text-slate-400">No live results yet. Try a different query.</p>
+              <p className="py-8 text-center text-sm text-slate-400 dark:text-slate-500">No live results yet. Try a different query.</p>
             )}
           </div>
         )}
 
         {/* GPS Check-In Panel */}
         <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50"><Navigation className="h-5 w-5 text-emerald-600" /></div>
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-950/50"><Navigation className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /></div>
               <div>
-                <h3 className="font-semibold text-slate-800">Candidate Summary</h3>
-                <p className="text-xs text-slate-500">Profile based matching</p>
+                <h3 className="font-semibold text-slate-800 dark:text-slate-100">Candidate Summary</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Profile based matching</p>
               </div>
             </div>
             <div className="mt-4 space-y-3">
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/80">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-600">Role</span>
-                  <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700">{targetRole || 'Not set'}</span>
+                  <span className="text-sm text-slate-600 dark:text-slate-300">Role</span>
+                  <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">{targetRole || 'Not set'}</span>
                 </div>
                 <div className="mt-3 flex items-baseline justify-between gap-2">
-                  <span className="text-sm text-slate-600">Experience</span>
-                  <span className="text-sm font-semibold text-slate-800">{experienceValue || '1'} {experienceUnit}</span>
+                  <span className="text-sm text-slate-600 dark:text-slate-300">Experience</span>
+                  <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">{experienceValue || '1'} {experienceUnit}</span>
                 </div>
                 <div className="mt-3 flex items-start justify-between gap-2">
-                  <span className="text-sm text-slate-600">Skills</span>
-                  <span className="max-w-[55%] text-right text-xs font-medium text-slate-700">{skillsInput || 'No skills entered'}</span>
+                  <span className="text-sm text-slate-600 dark:text-slate-300">Skills</span>
+                  <span className="max-w-[55%] text-right text-xs font-medium text-slate-700 dark:text-slate-200">{skillsInput || 'No skills entered'}</span>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700">Verified hours</p>
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/30">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700 dark:text-emerald-300">Verified hours</p>
                   <input
                     type="number"
                     min={0}
                     value={verifiedClinicalHours}
                     onChange={(e) => { void handleMetricChange('verifiedClinicalHours', Number(e.target.value || 0)); }}
-                    className="mt-2 w-full rounded-lg border border-emerald-200 bg-white px-2 py-1.5 text-xl font-bold text-emerald-800 outline-none focus:border-emerald-500"
+                    className="mt-2 w-full rounded-lg border border-emerald-200 bg-white px-2 py-1.5 text-xl font-bold text-emerald-800 outline-none focus:border-emerald-500 dark:border-emerald-800 dark:bg-slate-800 dark:text-emerald-300"
                   />
                 </div>
-                <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-blue-700">Skill index</p>
+                <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 dark:border-blue-900/40 dark:bg-blue-950/30">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-blue-700 dark:text-blue-300">Skill index</p>
                   <input
                     type="number"
                     min={0}
                     max={100}
                     value={skillMatchIndex}
                     onChange={(e) => { void handleMetricChange('skillMatchIndex', Number(e.target.value || 0)); }}
-                    className="mt-2 w-full rounded-lg border border-blue-200 bg-white px-2 py-1.5 text-xl font-bold text-blue-800 outline-none focus:border-blue-500"
+                    className="mt-2 w-full rounded-lg border border-blue-200 bg-white px-2 py-1.5 text-xl font-bold text-blue-800 outline-none focus:border-blue-500 dark:border-blue-800 dark:bg-slate-800 dark:text-blue-300"
                   />
                 </div>
               </div>
+
+              <button
+                onClick={handleGpsCheckIn}
+                disabled={gpsLoading}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-70 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-950/50"
+              >
+                {gpsLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Verifying location…</> : <><Navigation className="h-4 w-4" /> {gpsStatus === 'verified' ? 'Check in again' : 'Verify GPS check-in'}</>}
+              </button>
+              {gpsStatus === 'error' && <p className="text-center text-xs text-rose-600 dark:text-rose-400">Location verification could not be completed. Please try again.</p>}
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="mb-3 flex items-center gap-2 font-semibold text-slate-800"><Clock className="h-4 w-4 text-emerald-600" /> Check-in History</h3>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <h3 className="mb-3 flex items-center gap-2 font-semibold text-slate-800 dark:text-slate-100"><Clock className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Check-in History</h3>
             {checkins.length === 0 ? (
-              <p className="py-6 text-center text-sm text-slate-400">No check-ins yet.</p>
+              <p className="py-6 text-center text-sm text-slate-400 dark:text-slate-500">No check-ins yet.</p>
             ) : (
               <div className="max-h-64 space-y-2 overflow-y-auto">
                 {checkins.map((ci) => (
-                  <div key={ci.id} className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                  <div key={ci.id} className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-800/80">
                     <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                       <div>
-                        <p className="text-xs font-medium text-slate-700">{ci.location_name}</p>
-                        <p className="text-[11px] text-slate-400">{new Date(ci.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                        <p className="text-xs font-medium text-slate-700 dark:text-slate-200">{ci.location_name}</p>
+                        <p className="text-[11px] text-slate-400 dark:text-slate-500">{new Date(ci.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
                       </div>
                     </div>
-                    <span className="text-xs font-semibold text-emerald-600">+{ci.hours_added}h</span>
+                    <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">+{ci.hours_added}h</span>
                   </div>
                 ))}
               </div>
@@ -692,36 +700,36 @@ function InternalJobCard({ job, fit, applied, applying, onApply }: {
   job: Job; fit: number; applied: boolean; applying: boolean; onApply: (job: Job) => void;
 }) {
   return (
-    <div className="group rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm transition-all hover:border-emerald-300 hover:shadow-md">
+    <div className="group rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm transition-all hover:border-emerald-300 hover:shadow-md dark:border-emerald-900/50 dark:bg-slate-900 dark:hover:border-emerald-600">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex-1">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h4 className="font-semibold text-slate-800">{job.title}</h4>
-              <p className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-500"><Building2 className="h-3.5 w-3.5" /> {job.company}</p>
+              <h4 className="font-semibold text-slate-800 dark:text-slate-100">{job.title}</h4>
+              <p className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400"><Building2 className="h-3.5 w-3.5" /> {job.company}</p>
             </div>
             <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
               <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${sourceColors.employer}`}>Direct from Employer</span>
               <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${categoryColors[job.category] ?? ''}`}>{job.category}</span>
             </div>
           </div>
-          <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-500">
+          <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-500 dark:text-slate-400">
             <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> {job.location}</span>
             <span className="flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5" /> {job.stipend}</span>
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
-            {job.skills.map((skill) => <span key={skill} className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{skill}</span>)}
+            {job.skills.map((skill) => <span key={skill} className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">{skill}</span>)}
           </div>
-          {job.description && <p className="mt-3 text-sm text-slate-500">{job.description}</p>}
+          {job.description && <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">{job.description}</p>}
         </div>
         <div className="flex flex-row items-center gap-3 sm:flex-col sm:items-end">
-          <div className="flex flex-col items-center rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 px-4 py-2.5 ring-1 ring-emerald-100">
-            <span className="flex items-center gap-1 text-xs font-medium text-emerald-700"><Zap className="h-3.5 w-3.5" /> Skill Match</span>
-            <span className={`text-2xl font-bold ${fit >= 75 ? 'text-emerald-600' : fit >= 50 ? 'text-amber-600' : 'text-slate-500'}`}>{fit}%</span>
+          <div className="flex flex-col items-center rounded-xl bg-gradient-to-br from-emerald-50 to-teal-50 px-4 py-2.5 ring-1 ring-emerald-100 dark:from-emerald-950/40 dark:to-teal-950/40 dark:ring-emerald-900/40">
+            <span className="flex items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-300"><Zap className="h-3.5 w-3.5" /> Skill Match</span>
+            <span className={`text-2xl font-bold ${fit >= 75 ? 'text-emerald-600 dark:text-emerald-400' : fit >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}>{fit}%</span>
           </div>
           <button onClick={() => onApply(job)} disabled={applying || applied}
             className={`flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
-              applied ? 'cursor-default bg-emerald-100 text-emerald-700' : 'bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-md hover:shadow-emerald-600/20'
+              applied ? 'cursor-default bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-md hover:shadow-emerald-600/20'
             } disabled:opacity-70`}>
             {applying ? <><Loader2 className="h-4 w-4 animate-spin" /> Applying…</> : applied ? <><CheckCircle2 className="h-4 w-4" /> Applied</> : <><Zap className="h-4 w-4" /> Quick Apply</>}
           </button>
@@ -733,13 +741,13 @@ function InternalJobCard({ job, fit, applied, applying, onApply }: {
 
 function ExternalJobCard({ job, fit }: { job: SearchResultJob; fit: number }) {
   return (
-    <div className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-blue-300 hover:shadow-md">
+    <div className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-blue-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-blue-600">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex-1">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h4 className="font-semibold text-slate-800">{job.title}</h4>
-              <p className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-500"><Building2 className="h-3.5 w-3.5" /> {job.company}</p>
+              <h4 className="font-semibold text-slate-800 dark:text-slate-100">{job.title}</h4>
+              <p className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400"><Building2 className="h-3.5 w-3.5" /> {job.company}</p>
             </div>
             <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
               <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${sourceColors[job.source] ?? sourceColors.employer}`}>
@@ -748,22 +756,22 @@ function ExternalJobCard({ job, fit }: { job: SearchResultJob; fit: number }) {
               <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${categoryColors[job.category] ?? ''}`}>{job.category}</span>
             </div>
           </div>
-          <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-500">
+          <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-500 dark:text-slate-400">
             <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> {job.location}</span>
             <span className="flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5" /> {job.stipend}</span>
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
-            {job.skills.map((skill) => <span key={skill} className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{skill}</span>)}
+            {job.skills.map((skill) => <span key={skill} className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">{skill}</span>)}
           </div>
-          {job.description && <p className="mt-3 text-sm text-slate-500">{job.description}</p>}
+          {job.description && <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">{job.description}</p>}
         </div>
         <div className="flex flex-row items-center gap-3 sm:flex-col sm:items-end">
-          <div className="flex flex-col items-center rounded-xl bg-slate-50 px-4 py-2.5 ring-1 ring-slate-100">
-            <span className="flex items-center gap-1 text-xs font-medium text-slate-600"><Zap className="h-3.5 w-3.5" /> Est. Match</span>
-            <span className={`text-2xl font-bold ${fit >= 75 ? 'text-emerald-600' : fit >= 50 ? 'text-amber-600' : 'text-slate-500'}`}>{fit}%</span>
+          <div className="flex flex-col items-center rounded-xl bg-slate-50 px-4 py-2.5 ring-1 ring-slate-100 dark:bg-slate-800/80 dark:ring-slate-700">
+            <span className="flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-300"><Zap className="h-3.5 w-3.5" /> Est. Match</span>
+            <span className={`text-2xl font-bold ${fit >= 75 ? 'text-emerald-600 dark:text-emerald-400' : fit >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}>{fit}%</span>
           </div>
           <a href={job.external_url} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-1.5 rounded-xl border border-blue-600 bg-white px-4 py-2.5 text-sm font-semibold text-blue-600 transition-all hover:bg-blue-50 hover:shadow-sm">
+            className="flex items-center gap-1.5 rounded-xl border border-blue-600 bg-white px-4 py-2.5 text-sm font-semibold text-blue-600 transition-all hover:bg-blue-50 hover:shadow-sm dark:border-blue-500 dark:bg-slate-800 dark:text-blue-300 dark:hover:bg-slate-700">
             <ExternalLink className="h-4 w-4" /> Apply on {job.platform}
           </a>
         </div>

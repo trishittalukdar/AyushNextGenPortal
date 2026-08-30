@@ -3,14 +3,15 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "homepage": "https://trishittalukdar.github.io/AyushNextGenPortal",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
-    "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+    "predeploy": "npm run build -- --base=/AyushNextGenPortal/",
+    "deploy": "gh-pages -d dist -b gh-pages"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",

@@ -11,6 +11,11 @@
   color: #0f172a;
 }
 
+html.dark {
+  color-scheme: dark;
+  background: #020817;
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -22,6 +27,13 @@ body {
     radial-gradient(circle at top left, rgba(16, 185, 129, 0.14), transparent 28%),
     linear-gradient(180deg, #f8fafc 0%, #eefaf7 100%);
   color: #0f172a;
+}
+
+html.dark body {
+  background:
+    radial-gradient(circle at top left, rgba(16, 185, 129, 0.16), transparent 26%),
+    linear-gradient(180deg, #020817 0%, #0f172a 100%);
+  color: #e2e8f0;
 }
 
 #root {
@@ -47,10 +59,16 @@ body {
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 transparent;
 }
+html.dark * {
+  scrollbar-color: #334155 transparent;
+}
 *::-webkit-scrollbar {
   width: 6px;
 }
 *::-webkit-scrollbar-thumb {
   background-color: #cbd5e1;
   border-radius: 3px;
+}
+html.dark *::-webkit-scrollbar-thumb {
+  background-color: #334155;
 }

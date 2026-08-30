@@ -454,6 +454,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const nextUser: UserProfile = { ...user, ...patch };
     setUser(nextUser);
 
+    if (hasSupabaseConfig && supabase) {
+      try {
+        const { data, error } = await supabase.auth.updateUser({
+          data: {
+            full_name: nextUser.fullName,
+            role: nextUser.role,
+            status: nextUser.status,
+            specialty: nextUser.specialty,
+            institution: nextUser.institution,
+            headline: nextUser.headline,
+            location: nextUser.location,
+            bio: nextUser.bio,
+            education: nextUser.education,
+            experience: nextUser.experience,
+            portfolio: nextUser.portfolio,
+            availability: nextUser.availability,
+            skills: nextUser.skills,
+            skillMatchIndex: nextUser.skillMatchIndex,
+            verifiedClinicalHours: nextUser.verifiedClinicalHours,
+          },
+        });
+
+        if (error) throw error;
+        if (data?.user) {
+          const syncedProfile = buildSupabaseUserProfile(data.user, nextUser.role);
+          setUser(syncedProfile);
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(syncedProfile));
+          }
+          return syncedProfile;
+        }
+      } catch {
+        // Fall through to local persistence below so the profile still saves in the browser.
+      }
+    }
+
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextUser));
       const users = getStoredUsers();

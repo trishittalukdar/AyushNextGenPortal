@@ -90,6 +90,24 @@ function App() {
     });
   }, [user]);
 
+  const isProfileComplete = useCallback((candidate: typeof user) => {
+    if (!candidate) return false;
+    return Boolean(
+      candidate.fullName?.trim() &&
+      candidate.email?.trim() &&
+      candidate.status &&
+      candidate.specialty?.trim() &&
+      candidate.institution?.trim() &&
+      candidate.skills?.length
+    );
+  }, []);
+
+  useMemo(() => {
+    if (user && !isProfileComplete(user)) {
+      setProfileEditorOpen(true);
+    }
+  }, [isProfileComplete, user]);
+
   const handleProfileSave = useCallback(async () => {
     if (!user) return;
     await updateProfile({

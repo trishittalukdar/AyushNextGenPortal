@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Github, Globe, Lock, LogIn, Mail, Shield, UserPlus, X } from 'lucide-react';
 import { useAuth, type AuthRole, STATUS_OPTIONS, SKILL_CATALOG, type UserStatus } from '@/context/AuthContext';
+import { hasSupabaseConfig } from '@/lib/supabase';
 
 type AuthModalProps = {
   open: boolean;
@@ -106,8 +107,7 @@ export function AuthModal({ open, initialMode = 'login', onClose, onToast }: Aut
       setSubmitting(true);
       setError('');
 
-      const hasProviderConfig = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
-      if (hasProviderConfig) {
+      if (hasSupabaseConfig) {
         const trimmedEmail = email.trim();
         const user = await loginWithProvider(provider, { fullName: fullName || undefined, email: trimmedEmail, role });
         onToast(`Signed in with ${provider === 'google' ? 'Google' : 'GitHub'}`, `Redirecting to ${provider === 'google' ? 'Google' : 'GitHub'}...`);

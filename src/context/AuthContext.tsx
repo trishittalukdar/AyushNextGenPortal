@@ -76,6 +76,35 @@ type AuthContextValue = {
 const STORAGE_KEY = 'ayush-nextgen-current-user';
 const USERS_KEY = 'ayush-nextgen-users';
 
+const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+
+function buildSupabaseUserProfile(user: any, preferredRole: AuthRole = 'student'): UserProfile {
+  const meta = user?.user_metadata ?? {};
+  const safeEmail = (user?.email || meta.email || `${preferredRole}-user@ayushportal.local`).trim().toLowerCase();
+
+  return {
+    id: user?.id || `supabase-${Date.now()}`,
+    fullName: meta.full_name || meta.name || 'Supabase User',
+    email: safeEmail,
+    password: 'supabase-auth',
+    role: (meta.role as AuthRole) || preferredRole,
+    status: (meta.status as UserStatus) || 'Student',
+    specialty: meta.specialty || 'Career-focused professional',
+    institution: meta.institution || 'Supabase authenticated account',
+    skills: Array.isArray(meta.skills) && meta.skills.length ? meta.skills : ['AI/ML', 'Research', 'Data Analysis'],
+    headline: meta.headline || 'Career-focused learner',
+    location: meta.location || 'India',
+    bio: meta.bio || 'Verified Supabase user profile.',
+    education: meta.education || 'Profile details pending',
+    experience: meta.experience || 'Early career profile',
+    portfolio: meta.portfolio || 'https://example.com/portfolio',
+    availability: meta.availability || 'Open to opportunities',
+    asqScore: 88,
+    skillMatchIndex: 88,
+    verifiedClinicalHours: 34,
+  };
+}
+
 const defaultUser: UserProfile = {
   id: 'user-trishit',
   fullName: 'Trishit Talukdar',
@@ -136,6 +165,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch {
         setUser(null);
       }
+    }
+
+    if (hasSupabaseConfig && supabase) {
+      const hydrateSupabaseSession = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const profile = buildSupabaseUserProfile(session.user, 'student');
+          setUser(profile);
+          window.localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+        }
+      };
+
+      hydrateSupabaseSession();
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_OUT') {
+          setUser(null);
+          window.localStorage.removeItem(STORAGE_KEY);
+          return;
+        }
+
+        if (session?.user) {
+          const profile = buildSupabaseUserProfile(session.user, 'student');
+          setUser(profile);
+          window.localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+        }
+      });
+
+      return () => subscription.unsubscribe();
     }
   }, []);
 
@@ -201,9 +258,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (hasSupabaseConfig && supabase) {
       const redirectUrl = `${window.location.origin}${window.location.pathname}`;
+      const providerOptions: Record<string, unknown> = {
+        redirectTo: redirectUrl,
+      };
+
+      if (provider === 'google') {
+        providerOptions.queryParams = {
+          access_type: 'offline',
+          prompt: 'consent select_account',
+        };
+      }
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
-        options: { redirectTo: redirectUrl },
+        options: providerOptions,
       });
       if (error) throw new Error(error.message || 'Unable to sign in.');
 
@@ -234,8 +302,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
     }
 
-    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(safeEmail);
-    if (!safeEmail || !emailValid) {
+    if (!safeEmail || !isValidEmail(safeEmail)) {
       throw new Error(`Please enter a valid email before continuing with ${provider === 'google' ? 'Google' : 'GitHub'} in demo mode.`);
     }
 
@@ -397,7 +464,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return nextUser;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    if (hasSupabaseConfig && supabase) {
+      try {
+        await supabase.auth.signOut();
+      } catch {
+        // Ignore sign-out errors and keep the UI consistent.
+      }
+    }
+
     setUser(null);
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(STORAGE_KEY);

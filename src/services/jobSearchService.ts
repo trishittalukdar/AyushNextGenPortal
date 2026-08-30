@@ -23,8 +23,6 @@ export type SearchResultJob = {
   created_at: string;
 };
 
-type RapidApiJob = Record<string, unknown>;
-
 const SEARCH_SKILLS: Record<SearchCategory, string[]> = {
   'All Skills': ['Ayush', 'Healthcare', 'Research', 'Software', 'AI', 'Data', 'Engineering'],
   'AYUSH & Medicine': ['Ayurveda', 'Panchakarma', 'Ayush', 'Pharmacovigilance', 'NABH'],
@@ -212,53 +210,6 @@ export function resolveCategoryForQuery(query: string, selectedCategory: string)
   return 'Tech/Software';
 }
 
-function overlapScore(text: string, terms: string[]): number {
-  const normalized = text.toLowerCase();
-  return terms.reduce((total, term) => {
-    if (!term) return total;
-    return total + (normalized.includes(term.toLowerCase()) ? 1 : 0);
-  }, 0);
-}
-
-function semanticBoost(query: string, job: SearchResultJob): number {
-  const terms = expandSearchTokens(query).map((term) => term.toLowerCase());
-  const compactTerms = new Set(terms.filter(Boolean));
-  if (!compactTerms.size) return 0;
-
-  const title = job.title.toLowerCase();
-  const desc = `${job.description} ${job.company} ${(job.skills ?? []).join(' ')}`.toLowerCase();
-
-  let boost = 0;
-  for (const term of compactTerms) {
-    if (title.includes(term)) boost += 6;
-    if (desc.includes(term)) boost += 2;
-    if (term.includes('machine') && (title.includes('ml') || title.includes('ai') || title.includes('data'))) boost += 3;
-    if (term.includes('artificial') && (title.includes('ai') || title.includes('machine'))) boost += 3;
-    if ((job.skills ?? []).some((skill) => skill.toLowerCase().includes(term))) boost += 5;
-  }
-
-  return boost + overlapScore(`${job.title} ${job.description} ${(job.skills ?? []).join(' ')}`.toLowerCase(), Array.from(compactTerms));
-}
-
-function scoreQueryMatch(job: SearchResultJob, query: string): number {
-  const text = [job.title, job.company, job.description, job.category, ...(job.skills ?? [])].join(' ').toLowerCase();
-  const expanded = expandSearchTokens(query).map((item) => item.toLowerCase());
-  const terms = new Set(expanded);
-
-  if (!terms.size) return 1;
-
-  let score = 0;
-  for (const term of terms) {
-    if (!term) continue;
-    if (text.includes(term)) score += 3;
-    if (job.title.toLowerCase().includes(term)) score += 5;
-    if (job.company.toLowerCase().includes(term)) score += 2;
-    if ((job.skills ?? []).some((skill) => skill.toLowerCase().includes(term))) score += 4;
-  }
-
-  return score + semanticBoost(query, job);
-}
-
 export function searchJobs(query: string, category: string = 'All Skills', limit = 4): SearchResultJob[] {
   const safeQuery = (query || 'Ayush healthcare jobs').trim();
   const resolvedCategory = resolveCategoryForQuery(safeQuery, category);
@@ -281,139 +232,41 @@ export function searchJobs(query: string, category: string = 'All Skills', limit
     description: `Search-driven opportunity for ${safeQuery} and related skills across major hiring channels.`,
     source: platform.source,
     category: resolvedCategory,
-    external_url: '',
+    external_url: platform.urlBuilder(safeQuery),
     platform: platform.label,
     created_at: new Date().toISOString(),
   }));
 }
 
-function textValue(job: RapidApiJob, keys: string[], fallback: string): string {
-  for (const key of keys) {
-    const value = job[key];
-    if (typeof value === 'string' && value.trim()) return value.trim();
-    if (typeof value === 'number') return String(value);
-  }
-  return fallback;
-}
-
-function isDirectJobLink(value: string): boolean {
-  const link = value.trim();
-  if (!link || !/^https?:\/\//i.test(link)) return false;
-
-  try {
-    const url = new URL(link);
-    const pathname = url.pathname.toLowerCase();
-    const hasSearchParams = url.searchParams.has('q') || url.searchParams.has('keywords') || url.searchParams.has('query') || url.searchParams.has('search') || url.searchParams.has('text');
-    return !pathname.includes('/search') && !pathname.includes('/jobs/search') && !pathname.includes('/jobs/search/') && !hasSearchParams;
-  } catch {
-    return false;
-  }
-}
-
-function directJobLink(job: RapidApiJob): string {
-  const candidates = [
-    textValue(job, ['job_apply_link', 'apply_link', 'job_url', 'url', 'link', 'page_url', 'job_post_url'], ''),
-    textValue(job, ['job_apply_link', 'apply_link', 'url', 'link', 'page_url', 'job_post_url'], ''),
-  ];
-
-  for (const candidate of candidates) {
-    if (candidate && isDirectJobLink(candidate)) return candidate;
-  }
-
-  return '';
-}
-
-function listValue(job: RapidApiJob, keys: string[], fallback: string[]): string[] {
-  for (const key of keys) {
-    const value = job[key];
-    if (Array.isArray(value)) {
-      const items = value
-        .map((item) => (typeof item === 'string' ? item.trim() : typeof item === 'object' && item && 'name' in item && typeof item.name === 'string' ? item.name.trim() : ''))
-        .filter(Boolean);
-      if (items.length > 0) return items;
-    }
-    if (typeof value === 'string' && value.trim()) return value.split(/[,|]/).map((item) => item.trim()).filter(Boolean);
-  }
-  return fallback;
-}
-
-function normalizeJSearchJobs(payload: unknown, query: string, category: string): SearchResultJob[] {
-  if (!payload || typeof payload !== 'object') return [];
-  const data = (payload as { data?: unknown }).data;
-  if (!Array.isArray(data)) return [];
-
-  return (data as RapidApiJob[]).map((job, index) => {
-    const title = textValue(job, ['job_title', 'title', 'position'], 'Open Opportunity');
-    const company = textValue(job, ['employer_name', 'company_name', 'company', 'employer'], 'Hiring Partner');
-    const location = textValue(job, ['job_city', 'job_location', 'location', 'city', 'country'], 'India');
-    const description = textValue(job, ['job_description', 'description', 'summary', 'snippet'], `Opportunity for ${query}.`);
-    const publisher = textValue(job, ['publisher_name', 'job_publisher', 'publisher', 'source'], 'JSearch');
-    const skills = listValue(job, ['job_required_skills', 'skills', 'skill_set', 'technologies'], [query, 'Healthcare']);
-    const applyLink = directJobLink(job);
-
-    return {
-      id: textValue(job, ['job_id', 'id', 'position_id'], `${publisher}-${index}-${title}`),
-      title,
-      company,
-      location,
-      stipend: textValue(job, ['salary', 'stipend', 'salary_range', 'job_salary'], 'Competitive / Standard'),
-      skills,
-      description: description.length > 220 ? `${description.slice(0, 220)}...` : description,
-      source: publisher.toLowerCase().replace(/\s+/g, '-'),
-      category: resolveCategoryForQuery(query, category),
-      external_url: applyLink,
-      platform: publisher || 'JSearch',
-      created_at: new Date().toISOString(),
-    };
-  });
-}
-
+/**
+ * Live job search. Calls the server-side `/api/jobs` endpoint (served by the
+ * Vite dev middleware locally and by the Vercel function in production) so API
+ * keys stay on the server and are never exposed to the browser. Falls back to
+ * generated results when the backend is unreachable or returns nothing.
+ */
 export async function searchJobsLive(query: string, category: string = 'All Skills', signal?: AbortSignal): Promise<SearchResultJob[]> {
   const safeQuery = (query || 'Ayush healthcare jobs').trim();
-  const searchTerms = expandSearchTokens(safeQuery).join(' ');
-  const enrichedQuery = searchTerms || safeQuery;
-  const rapidApiKey = (import.meta.env.VITE_RAPIDAPI_KEY ?? '').trim();
-
-  if (!rapidApiKey) {
-    return searchJobs(safeQuery, category, 4);
-  }
 
   try {
-    const url = new URL('https://jsearch.p.rapidapi.com/search');
-    url.searchParams.set('query', enrichedQuery);
-    url.searchParams.set('page', '1');
-    url.searchParams.set('num_pages', '1');
-    url.searchParams.set('country', 'in');
+    const url = new URL('/api/jobs', window.location.origin);
+    url.searchParams.set('query', safeQuery);
+    url.searchParams.set('category', category);
 
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: {
-        'x-rapidapi-key': rapidApiKey,
-        'x-rapidapi-host': 'jsearch.p.rapidapi.com',
-        'Content-Type': 'application/json',
-      },
-      signal,
-    });
-
+    const response = await fetch(url.toString(), { signal });
     if (!response.ok) {
       return searchJobs(safeQuery, category, 4);
     }
 
-    const payload = await response.json();
-    const liveJobs = normalizeJSearchJobs(payload, safeQuery, category);
+    const payload = (await response.json()) as { data?: SearchResultJob[] };
+    const data = Array.isArray(payload?.data) ? payload.data : [];
 
-    if (liveJobs.length === 0) {
+    if (data.length === 0) {
       return searchJobs(safeQuery, category, 4);
     }
 
-    const scoredJobs = liveJobs
-      .map((job) => ({ job, score: scoreQueryMatch(job, safeQuery) }))
-      .sort((a, b) => b.score - a.score)
-      .map(({ job }) => job)
-      .slice(0, 8);
-
-    return scoredJobs.length > 0 ? scoredJobs : searchJobs(safeQuery, category, 4);
-  } catch {
+    return data as SearchResultJob[];
+  } catch (error) {
+    if (signal?.aborted) throw error;
     return searchJobs(safeQuery, category, 4);
   }
 }

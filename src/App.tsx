@@ -123,10 +123,10 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (user && !isProfileComplete(user)) {
+    if (user && !isProfileComplete(user) && !profileEditorOpen) {
       setProfileEditorOpen(true);
     }
-  }, [isProfileComplete, user]);
+  }, [isProfileComplete, profileEditorOpen, user]);
 
   const handleProfileSave = useCallback(async () => {
     if (!user) return;

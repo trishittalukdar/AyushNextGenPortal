@@ -36,19 +36,19 @@ function App() {
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
   const [profileDraft, setProfileDraft] = useState(() => ({
     fullName: user?.fullName ?? '',
-    status: user?.status ?? 'Student',
+    status: user?.status ?? '',
     specialty: user?.specialty ?? '',
     institution: user?.institution ?? '',
-    location: user?.location ?? 'India',
+    location: user?.location ?? '',
     headline: user?.headline ?? '',
     bio: user?.bio ?? '',
     education: user?.education ?? '',
     experience: user?.experience ?? '',
     portfolio: user?.portfolio ?? '',
-    availability: user?.availability ?? 'Open to opportunities',
+    availability: user?.availability ?? '',
     skills: user?.skills ?? [],
-    skillMatchIndex: user?.skillMatchIndex ?? 88,
-    verifiedClinicalHours: user?.verifiedClinicalHours ?? 34,
+    skillMatchIndex: user?.skillMatchIndex ?? 0,
+    verifiedClinicalHours: user?.verifiedClinicalHours ?? 0,
   }));
 
   const addToast = useCallback((message: string, submessage?: string) => {
@@ -321,12 +321,22 @@ function App() {
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block text-sm text-slate-700">
                 <span className="mb-1.5 block font-medium">Full name</span>
-                <input value={profileDraft.fullName} onChange={(e) => setProfileDraft((prev) => ({ ...prev, fullName: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
+                <input
+                  value={profileDraft.fullName}
+                  placeholder="Your full name"
+                  onChange={(e) => setProfileDraft((prev) => ({ ...prev, fullName: e.target.value }))}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
+                />
               </label>
 
               <label className="block text-sm text-slate-700">
                 <span className="mb-1.5 block font-medium">Status</span>
-                <select value={profileDraft.status} onChange={(e) => setProfileDraft((prev) => ({ ...prev, status: e.target.value as typeof prev.status }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20">
+                <select
+                  value={profileDraft.status}
+                  onChange={(e) => setProfileDraft((prev) => ({ ...prev, status: e.target.value as typeof prev.status }))}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
+                >
+                  <option value="">Select your status</option>
                   <option value="Student">Student</option>
                   <option value="Unemployed">Unemployed</option>
                   <option value="Working Professional">Working Professional</option>
@@ -337,47 +347,47 @@ function App() {
 
               <label className="block text-sm text-slate-700">
                 <span className="mb-1.5 block font-medium">Headline</span>
-                <input value={profileDraft.headline} onChange={(e) => setProfileDraft((prev) => ({ ...prev, headline: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
+                <input value={profileDraft.headline} placeholder="e.g. AI-ready healthcare professional" onChange={(e) => setProfileDraft((prev) => ({ ...prev, headline: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
               </label>
 
               <label className="block text-sm text-slate-700">
                 <span className="mb-1.5 block font-medium">Location</span>
-                <input value={profileDraft.location} onChange={(e) => setProfileDraft((prev) => ({ ...prev, location: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
+                <input value={profileDraft.location} placeholder="Your city or country" onChange={(e) => setProfileDraft((prev) => ({ ...prev, location: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
               </label>
 
               <label className="block text-sm text-slate-700 md:col-span-2">
                 <span className="mb-1.5 block font-medium">Bio</span>
-                <textarea value={profileDraft.bio} onChange={(e) => setProfileDraft((prev) => ({ ...prev, bio: e.target.value }))} rows={3} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
+                <textarea value={profileDraft.bio} placeholder="Tell people about your background, interests, and goals" onChange={(e) => setProfileDraft((prev) => ({ ...prev, bio: e.target.value }))} rows={3} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
               </label>
 
               <label className="block text-sm text-slate-700">
                 <span className="mb-1.5 block font-medium">Specialty</span>
-                <input value={profileDraft.specialty} onChange={(e) => setProfileDraft((prev) => ({ ...prev, specialty: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
+                <input value={profileDraft.specialty} placeholder="Ayurveda, data science, product, etc." onChange={(e) => setProfileDraft((prev) => ({ ...prev, specialty: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
               </label>
 
               <label className="block text-sm text-slate-700">
                 <span className="mb-1.5 block font-medium">Institution</span>
-                <input value={profileDraft.institution} onChange={(e) => setProfileDraft((prev) => ({ ...prev, institution: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
+                <input value={profileDraft.institution} placeholder="College, company, or organization" onChange={(e) => setProfileDraft((prev) => ({ ...prev, institution: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
               </label>
 
               <label className="block text-sm text-slate-700">
                 <span className="mb-1.5 block font-medium">Education</span>
-                <input value={profileDraft.education} onChange={(e) => setProfileDraft((prev) => ({ ...prev, education: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
+                <input value={profileDraft.education} placeholder="Degree, course, or certification" onChange={(e) => setProfileDraft((prev) => ({ ...prev, education: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
               </label>
 
               <label className="block text-sm text-slate-700">
                 <span className="mb-1.5 block font-medium">Experience</span>
-                <input value={profileDraft.experience} onChange={(e) => setProfileDraft((prev) => ({ ...prev, experience: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
+                <input value={profileDraft.experience} placeholder="Internships, roles, or projects" onChange={(e) => setProfileDraft((prev) => ({ ...prev, experience: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
               </label>
 
               <label className="block text-sm text-slate-700">
                 <span className="mb-1.5 block font-medium">Portfolio / LinkedIn</span>
-                <input value={profileDraft.portfolio} onChange={(e) => setProfileDraft((prev) => ({ ...prev, portfolio: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
+                <input value={profileDraft.portfolio} placeholder="https://linkedin.com/in/your-profile" onChange={(e) => setProfileDraft((prev) => ({ ...prev, portfolio: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
               </label>
 
               <label className="block text-sm text-slate-700">
                 <span className="mb-1.5 block font-medium">Availability</span>
-                <input value={profileDraft.availability} onChange={(e) => setProfileDraft((prev) => ({ ...prev, availability: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
+                <input value={profileDraft.availability} placeholder="Open to internships, freelance, full-time" onChange={(e) => setProfileDraft((prev) => ({ ...prev, availability: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
               </label>
 
               <label className="block text-sm text-slate-700">
@@ -387,8 +397,9 @@ function App() {
                   min={0}
                   max={100}
                   value={profileDraft.skillMatchIndex}
+                  placeholder="0"
                   onChange={(e) => setProfileDraft((prev) => ({ ...prev, skillMatchIndex: Math.min(100, Math.max(0, Number(e.target.value || 0))) }))}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
                 />
               </label>
 
@@ -398,16 +409,40 @@ function App() {
                   type="number"
                   min={0}
                   value={profileDraft.verifiedClinicalHours}
+                  placeholder="0"
                   onChange={(e) => setProfileDraft((prev) => ({ ...prev, verifiedClinicalHours: Math.max(0, Number(e.target.value || 0)) }))}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
                 />
               </label>
 
               <div className="md:col-span-2">
-                <p className="mb-2 text-sm font-medium text-slate-700">Selected skills</p>
+                <p className="mb-2 text-sm font-medium text-slate-700">Skills</p>
                 <div className="flex flex-wrap gap-2">
-                  {(profileDraft.skills.length ? profileDraft.skills : ['AI/ML', 'Research']).map((skill) => (
+                  {profileDraft.skills.length ? profileDraft.skills.map((skill) => (
                     <span key={skill} className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">{skill}</span>
+                  )) : (
+                    <span className="rounded-full border border-dashed border-slate-300 bg-slate-50 px-2.5 py-1 text-xs text-slate-400">Add your skills</span>
+                  )}
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {SKILL_CATALOG.flatMap((group) => group.skills).slice(0, 18).map((skill) => (
+                    <button
+                      key={skill}
+                      type="button"
+                      onClick={() => setProfileDraft((prev) => {
+                        const nextSkills = prev.skills.includes(skill)
+                          ? prev.skills.filter((item) => item !== skill)
+                          : [...prev.skills, skill];
+                        return { ...prev, skills: nextSkills };
+                      })}
+                      className={`rounded-lg border px-2.5 py-2 text-left text-xs transition ${
+                        profileDraft.skills.includes(skill)
+                          ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:text-emerald-700'
+                      }`}
+                    >
+                      {skill}
+                    </button>
                   ))}
                 </div>
               </div>

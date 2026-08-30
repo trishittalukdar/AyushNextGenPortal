@@ -27,13 +27,13 @@ export function AuthModal({ open, initialMode = 'login', onClose, onToast }: Aut
   const [specialty, setSpecialty] = useState(user?.specialty ?? '');
   const [institution, setInstitution] = useState(user?.institution ?? '');
   const [headline, setHeadline] = useState(user?.headline ?? '');
-  const [location, setLocation] = useState(user?.location ?? 'India');
+  const [location, setLocation] = useState(user?.location ?? '');
   const [bio, setBio] = useState(user?.bio ?? '');
   const [education, setEducation] = useState(user?.education ?? '');
   const [experience, setExperience] = useState(user?.experience ?? '');
   const [portfolio, setPortfolio] = useState(user?.portfolio ?? '');
-  const [availability, setAvailability] = useState(user?.availability ?? 'Available for opportunities');
-  const [selectedSkills, setSelectedSkills] = useState<string[]>(user?.skills ?? ['AI/ML', 'Python']);
+  const [availability, setAvailability] = useState(user?.availability ?? '');
+  const [selectedSkills, setSelectedSkills] = useState<string[]>(user?.skills ?? []);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -201,7 +201,7 @@ export function AuthModal({ open, initialMode = 'login', onClose, onToast }: Aut
           {!isLogin && (
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">Full Name</label>
-              <input value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="Trishit Talukdar" />
+              <input value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="Your full name" />
             </div>
           )}
 
@@ -209,7 +209,7 @@ export function AuthModal({ open, initialMode = 'login', onClose, onToast }: Aut
             <label className="mb-1.5 block text-sm font-medium text-slate-700">Email</label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="name@example.com" />
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="name@example.com" />
             </div>
           </div>
 
@@ -217,7 +217,7 @@ export function AuthModal({ open, initialMode = 'login', onClose, onToast }: Aut
             <label className="mb-1.5 block text-sm font-medium text-slate-700">Password</label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="••••••••" />
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="Enter a password" />
             </div>
           </div>
 
@@ -246,37 +246,37 @@ export function AuthModal({ open, initialMode = 'login', onClose, onToast }: Aut
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">Headline</label>
-                <input value={headline} onChange={(e) => setHeadline(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="AI-ready healthcare and Ayush professional" />
+                <input value={headline} onChange={(e) => setHeadline(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="AI-ready healthcare and Ayush professional" />
               </div>
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">About / Bio</label>
-                <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="Research-oriented healthcare learner focused on AI-enabled clinical workflows and public health." />
+                <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="Tell people about your background, interests, and goals" />
               </div>
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">Location</label>
-                <input value={location} onChange={(e) => setLocation(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="India" />
+                <input value={location} onChange={(e) => setLocation(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="Your city or country" />
               </div>
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">Institution / Organization</label>
-                <input value={institution} onChange={(e) => setInstitution(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="Ayush Stream Academy" />
+                <input value={institution} onChange={(e) => setInstitution(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="College, company, or organization" />
               </div>
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">Education / Qualification</label>
-                <input value={education} onChange={(e) => setEducation(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="BAMS / MSc Clinical Research" />
+                <input value={education} onChange={(e) => setEducation(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="Degree, course, or certification" />
               </div>
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">Experience</label>
-                <input value={experience} onChange={(e) => setExperience(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="2 years internships, research projects, clinical case support" />
+                <input value={experience} onChange={(e) => setExperience(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="Internships, roles, or projects" />
               </div>
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">Portfolio / LinkedIn</label>
-                <input value={portfolio} onChange={(e) => setPortfolio(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="https://linkedin.com/in/your-profile" />
+                <input value={portfolio} onChange={(e) => setPortfolio(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" placeholder="https://linkedin.com/in/your-profile" />
               </div>
 
               <div>

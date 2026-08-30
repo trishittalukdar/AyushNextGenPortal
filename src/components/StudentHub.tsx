@@ -580,6 +580,35 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
           )}
         </div>
 
+        {search.trim() && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-800">
+                Live Web Results <span className="ml-1 text-sm font-normal text-slate-400">({searchedWebJobs.length})</span>
+              </h3>
+              <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-700">
+                {liveSearchLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Searching…</> : <><Globe className="h-4 w-4" /> Across the web</>}
+              </span>
+            </div>
+
+            {liveSearchLoading && searchedWebJobs.length === 0 ? (
+              <div className="space-y-3">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="h-28 animate-pulse rounded-xl bg-slate-100" />
+                ))}
+              </div>
+            ) : searchedWebJobs.length > 0 ? (
+              <div className="space-y-3">
+                {searchedWebJobs.map((job) => (
+                  <ExternalJobCard key={job.id} job={job} fit={calculateFitScore(job)} />
+                ))}
+              </div>
+            ) : (
+              <p className="py-8 text-center text-sm text-slate-400">No live results yet. Try a different query.</p>
+            )}
+          </div>
+        )}
+
         {/* GPS Check-In Panel */}
         <div className="space-y-4">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

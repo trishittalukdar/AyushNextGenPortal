@@ -2,5 +2,10 @@
   "previewPort": 3000,
   "healthPath": "/",
   "startCommand": "docker compose -f docker-compose.base44.yml up -d",
-  "secrets": []
+  "secrets": [
+    { "name": "RAPIDAPI_KEY", "description": "RapidAPI key for JSearch + Internships API. Powers live job/internship search.", "requiredAtBoot": false },
+    { "name": "GOOGLE_SEARCH_API_KEY", "description": "Optional Google Programmable Search API key.", "requiredAtBoot": false },
+    { "name": "GOOGLE_SEARCH_ENGINE_ID", "description": "Optional Programmable Search Engine ID (cx).", "requiredAtBoot": false },
+    { "name": "SERPAPI_KEY", "description": "Optional SerpApi key for google_jobs engine.", "requiredAtBoot": false }
+  ]
 }

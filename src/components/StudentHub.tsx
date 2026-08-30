@@ -61,7 +61,7 @@ const categoryColors: Record<string, string> = {
 const isExternal = (job: Job) => job.source !== 'employer' && !!job.external_url;
 
 export function StudentHub({ onToast, onRequireAuth }: Props) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user, updateProfile } = useAuth();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('All Skills');
@@ -81,8 +81,41 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
   const [checkins, setCheckins] = useState<CheckIn[]>([]);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'verifying' | 'verified' | 'error'>('idle');
-  const [verifiedClinicalHours, setVerifiedClinicalHours] = useState(34);
-  const [skillMatchIndex, setSkillMatchIndex] = useState(88);
+  const [verifiedClinicalHours, setVerifiedClinicalHours] = useState(user?.verifiedClinicalHours ?? 34);
+  const [skillMatchIndex, setSkillMatchIndex] = useState(user?.skillMatchIndex ?? 88);
+
+  useEffect(() => {
+    if (user) {
+      setVerifiedClinicalHours(user.verifiedClinicalHours ?? 34);
+      setSkillMatchIndex(user.skillMatchIndex ?? 88);
+    }
+  }, [user]);
+
+  const persistMetrics = useCallback(async (nextSkillMatchIndex: number, nextVerifiedClinicalHours: number) => {
+    if (!isAuthenticated || !user) return;
+
+    await updateProfile({
+      skillMatchIndex: nextSkillMatchIndex,
+      verifiedClinicalHours: nextVerifiedClinicalHours,
+    });
+  }, [isAuthenticated, updateProfile, user]);
+
+  const handleMetricChange = useCallback(async (type: 'skillMatchIndex' | 'verifiedClinicalHours', nextValue: number) => {
+    if (type === 'skillMatchIndex') {
+      const normalizedValue = Math.min(100, Math.max(0, Number.isFinite(nextValue) ? nextValue : 0));
+      setSkillMatchIndex(normalizedValue);
+      if (isAuthenticated) {
+        await persistMetrics(normalizedValue, verifiedClinicalHours);
+      }
+      return;
+    }
+
+    const normalizedValue = Math.max(0, Number.isFinite(nextValue) ? nextValue : 0);
+    setVerifiedClinicalHours(normalizedValue);
+    if (isAuthenticated) {
+      await persistMetrics(skillMatchIndex, normalizedValue);
+    }
+  }, [isAuthenticated, persistMetrics, skillMatchIndex, verifiedClinicalHours]);
 
   const loadJobs = useCallback(async () => {
     if (!supabase) {
@@ -263,9 +296,11 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
       return;
     }
 
-    setSkillMatchIndex((prev) => Math.min(99, prev + 2));
+    const nextSkillMatchIndex = Math.min(99, skillMatchIndex + 2);
+    setSkillMatchIndex(nextSkillMatchIndex);
+    await persistMetrics(nextSkillMatchIndex, verifiedClinicalHours);
     setApplyingId(job.id);
-    const fit = calculateAsqFit(job, 88, 140);
+    const fit = calculateAsqFit(job, nextSkillMatchIndex, verifiedClinicalHours);
 
     if (!supabase) {
       setApplyingId(null);
@@ -292,8 +327,11 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
     if (!supabase) {
       setGpsLoading(false);
       setGpsStatus('verified');
-      setVerifiedClinicalHours((prev) => prev + 4);
-      setSkillMatchIndex((prev) => Math.min(99, prev + 1));
+      const nextClinicalHours = verifiedClinicalHours + 4;
+      const nextSkillIndex = Math.min(99, skillMatchIndex + 1);
+      setVerifiedClinicalHours(nextClinicalHours);
+      setSkillMatchIndex(nextSkillIndex);
+      void persistMetrics(nextSkillIndex, nextClinicalHours);
       onToast('GPS Attendance Verified', '+4 practical hours added in demo mode');
       return;
     }
@@ -317,8 +355,11 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
         if (error || !data) { setGpsStatus('error'); onToast('Check-in failed', 'Could not save attendance record'); return; }
         setCheckins((prev) => [data, ...prev]);
         setGpsStatus('verified');
-        setVerifiedClinicalHours((prev) => prev + 4);
-        setSkillMatchIndex((prev) => Math.min(99, prev + 1));
+        const nextClinicalHours = verifiedClinicalHours + 4;
+        const nextSkillIndex = Math.min(99, skillMatchIndex + 1);
+        setVerifiedClinicalHours(nextClinicalHours);
+        setSkillMatchIndex(nextSkillIndex);
+        await persistMetrics(nextSkillIndex, nextClinicalHours);
         onToast('GPS Attendance Verified', `+4 practical hours added at ${locationName}`);
       },
       () => { setGpsLoading(false); setGpsStatus('error'); onToast('GPS permission denied', 'Enable location access to verify attendance'); },
@@ -568,11 +609,24 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-700">Verified hours</p>
-                  <p className="mt-2 text-xl font-bold text-emerald-800">{verifiedClinicalHours}</p>
+                  <input
+                    type="number"
+                    min={0}
+                    value={verifiedClinicalHours}
+                    onChange={(e) => { void handleMetricChange('verifiedClinicalHours', Number(e.target.value || 0)); }}
+                    className="mt-2 w-full rounded-lg border border-emerald-200 bg-white px-2 py-1.5 text-xl font-bold text-emerald-800 outline-none focus:border-emerald-500"
+                  />
                 </div>
                 <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-blue-700">Skill index</p>
-                  <p className="mt-2 text-xl font-bold text-blue-800">{skillMatchIndex}%</p>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={skillMatchIndex}
+                    onChange={(e) => { void handleMetricChange('skillMatchIndex', Number(e.target.value || 0)); }}
+                    className="mt-2 w-full rounded-lg border border-blue-200 bg-white px-2 py-1.5 text-xl font-bold text-blue-800 outline-none focus:border-blue-500"
+                  />
                 </div>
               </div>
             </div>

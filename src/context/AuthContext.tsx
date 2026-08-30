@@ -35,6 +35,8 @@ export type UserProfile = {
   portfolio: string;
   availability: string;
   asqScore: number;
+  skillMatchIndex: number;
+  verifiedClinicalHours: number;
 };
 
 type LoginInput = {
@@ -92,6 +94,8 @@ const defaultUser: UserProfile = {
   portfolio: 'portfolio.ayushportal.in/trishit',
   availability: 'Available for internships and full-time roles',
   asqScore: 88,
+  skillMatchIndex: 88,
+  verifiedClinicalHours: 34,
 };
 
 function getStoredUsers(): UserProfile[] {
@@ -160,6 +164,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         portfolio: 'https://example.com/portfolio',
         availability: 'Open to opportunities',
         asqScore: 88,
+        skillMatchIndex: 88,
+        verifiedClinicalHours: 34,
       };
 
       setUser(profile);
@@ -222,6 +228,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         portfolio: 'https://example.com/portfolio',
         availability: 'Open to opportunities',
         asqScore: 88,
+        skillMatchIndex: 88,
+        verifiedClinicalHours: 34,
       };
 
       setUser(socialUser);
@@ -251,6 +259,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       portfolio: 'https://example.com/portfolio',
       availability: 'Open to opportunities',
       asqScore: 88,
+      skillMatchIndex: 88,
+      verifiedClinicalHours: 34,
     };
 
     const finalUser = existing ?? nextUser;
@@ -314,6 +324,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         portfolio: portfolio.trim() || 'https://example.com/portfolio',
         availability: availability.trim() || 'Open to opportunities',
         asqScore: 88,
+        skillMatchIndex: 88,
+        verifiedClinicalHours: 34,
       };
 
       setUser(nextUser);
@@ -351,6 +363,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       portfolio: portfolio.trim() || 'https://example.com/portfolio',
       availability: availability.trim() || 'Open to opportunities',
       asqScore: 88,
+      skillMatchIndex: 88,
+      verifiedClinicalHours: 34,
     };
 
     const updatedUsers = [nextUser, ...users];

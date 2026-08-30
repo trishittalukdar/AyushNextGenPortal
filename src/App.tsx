@@ -47,6 +47,8 @@ function App() {
     portfolio: user?.portfolio ?? '',
     availability: user?.availability ?? 'Open to opportunities',
     skills: user?.skills ?? [],
+    skillMatchIndex: user?.skillMatchIndex ?? 88,
+    verifiedClinicalHours: user?.verifiedClinicalHours ?? 34,
   }));
 
   const addToast = useCallback((message: string, submessage?: string) => {
@@ -83,6 +85,8 @@ function App() {
       portfolio: user.portfolio,
       availability: user.availability,
       skills: user.skills,
+      skillMatchIndex: user.skillMatchIndex,
+      verifiedClinicalHours: user.verifiedClinicalHours,
     });
   }, [user]);
 
@@ -101,6 +105,8 @@ function App() {
       portfolio: profileDraft.portfolio,
       availability: profileDraft.availability,
       skills: profileDraft.skills,
+      skillMatchIndex: profileDraft.skillMatchIndex,
+      verifiedClinicalHours: profileDraft.verifiedClinicalHours,
     });
     addToast('Profile updated', 'Your account details have been saved.');
     setProfileEditorOpen(false);
@@ -252,6 +258,14 @@ function App() {
                   ))}
                 </div>
               </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Skill Match Index</p>
+                <p className="mt-2 text-xl font-bold text-blue-800">{user?.skillMatchIndex ?? 88}%</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Verified Clinical Hours</p>
+                <p className="mt-2 text-xl font-bold text-emerald-800">{user?.verifiedClinicalHours ?? 34}</p>
+              </div>
             </div>
 
             <div className="mt-4 grid gap-4 lg:grid-cols-3">
@@ -346,6 +360,29 @@ function App() {
               <label className="block text-sm text-slate-700">
                 <span className="mb-1.5 block font-medium">Availability</span>
                 <input value={profileDraft.availability} onChange={(e) => setProfileDraft((prev) => ({ ...prev, availability: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20" />
+              </label>
+
+              <label className="block text-sm text-slate-700">
+                <span className="mb-1.5 block font-medium">Skill Match Index</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={profileDraft.skillMatchIndex}
+                  onChange={(e) => setProfileDraft((prev) => ({ ...prev, skillMatchIndex: Math.min(100, Math.max(0, Number(e.target.value || 0))) }))}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
+                />
+              </label>
+
+              <label className="block text-sm text-slate-700">
+                <span className="mb-1.5 block font-medium">Verified Clinical Hours</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={profileDraft.verifiedClinicalHours}
+                  onChange={(e) => setProfileDraft((prev) => ({ ...prev, verifiedClinicalHours: Math.max(0, Number(e.target.value || 0)) }))}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
+                />
               </label>
 
               <div className="md:col-span-2">

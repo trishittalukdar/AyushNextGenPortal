@@ -104,7 +104,27 @@ export function AuthModal({ open, initialMode = 'login', onClose, onToast }: Aut
   const handleSocialLogin = async (provider: 'google' | 'github') => {
     try {
       setSubmitting(true);
-      const user = await loginWithProvider(provider, { fullName: fullName || undefined, role });
+      setError('');
+
+      const hasProviderConfig = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
+      if (hasProviderConfig) {
+        const trimmedEmail = email.trim();
+        const user = await loginWithProvider(provider, { fullName: fullName || undefined, email: trimmedEmail, role });
+        onToast(`Signed in with ${provider === 'google' ? 'Google' : 'GitHub'}`, `Redirecting to ${provider === 'google' ? 'Google' : 'GitHub'}...`);
+        if (user?.email) {
+          // The redirect flow will take control; no local close needed here.
+        }
+        return;
+      }
+
+      const trimmedEmail = email.trim();
+      const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
+      if (!trimmedEmail || !emailValid) {
+        setError(`Please enter a valid email before continuing with ${provider === 'google' ? 'Google' : 'GitHub'} in demo mode.`);
+        return;
+      }
+
+      const user = await loginWithProvider(provider, { fullName: fullName || undefined, email: trimmedEmail, role });
       onToast(`Signed in with ${provider === 'google' ? 'Google' : 'GitHub'}`, `Welcome back, ${user.fullName}`);
       onClose();
     } catch (socialError) {

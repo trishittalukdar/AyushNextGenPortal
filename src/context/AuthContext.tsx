@@ -196,7 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginWithProvider = async (provider: AuthProvider, payload?: Partial<Pick<UserProfile, 'fullName' | 'email' | 'role'>>): Promise<UserProfile> => {
     const safeName = (payload?.fullName || `${provider.charAt(0).toUpperCase()}${provider.slice(1)} User`).trim();
-    const safeEmail = (payload?.email || `${provider}-user@ayushportal.local`).trim().toLowerCase();
+    const safeEmail = (payload?.email || '').trim().toLowerCase();
     const safeRole = (payload?.role || 'student') as AuthRole;
 
     if (hasSupabaseConfig && supabase) {
@@ -206,14 +206,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         options: { redirectTo: redirectUrl },
       });
       if (error) throw new Error(error.message || 'Unable to sign in.');
+
       if (data?.url) {
         window.location.href = data.url;
       }
 
-      const socialUser: UserProfile = {
+      return {
         id: `provider-${provider}-${Date.now()}`,
         fullName: safeName,
-        email: safeEmail,
+        email: safeEmail || `${provider}-pending@ayushportal.local`,
         password: `${provider}-oauth`,
         role: safeRole,
         status: 'Student',
@@ -231,12 +232,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         skillMatchIndex: 88,
         verifiedClinicalHours: 34,
       };
+    }
 
-      setUser(socialUser);
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(socialUser));
-      }
-      return socialUser;
+    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(safeEmail);
+    if (!safeEmail || !emailValid) {
+      throw new Error(`Please enter a valid email before continuing with ${provider === 'google' ? 'Google' : 'GitHub'} in demo mode.`);
     }
 
     const users = getStoredUsers();

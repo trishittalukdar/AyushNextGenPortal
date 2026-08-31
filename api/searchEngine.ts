@@ -454,7 +454,9 @@ export async function searchJobs(query: string, category: string = 'All Skills',
     ...(serp ?? []),
   ]);
 
-  if (merged.length === 0) return { data: [], source: 'unavailable', providers: [] };
+  if (merged.length === 0) {
+    return { data: fallbackJobs(safeQuery, category), source: 'unavailable', providers: [] };
+  }
 
   const ranked = rankJobs(merged, safeQuery).slice(0, 24);
   return { data: ranked, source: 'live', providers };

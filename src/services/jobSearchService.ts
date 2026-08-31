@@ -243,9 +243,8 @@ export function searchJobs(query: string, category: string = 'All Skills', limit
 /**
  * Live job search. Calls the server-side `/api/jobs` endpoint (served by the
  * Vite dev middleware locally and by the Vercel function in production) so API
- * keys stay on the server and are never exposed to the browser. It returns an
- * empty result set when the live backend is unavailable; generated listings are
- * never shown.
+ * keys stay on the server and are never exposed to the browser. Falls back to
+ * generated listings when the live backend is unavailable.
  */
 export async function searchJobsLive(query: string, category: string = 'All Skills', kind: SearchKind = 'jobs', signal?: AbortSignal): Promise<SearchResultJob[]> {
   const safeQuery = (query || 'Ayush healthcare jobs').trim();
@@ -256,21 +255,32 @@ export async function searchJobsLive(query: string, category: string = 'All Skil
     url.searchParams.set('category', category);
     url.searchParams.set('kind', kind);
 
-    const response = await fetch(url.toString(), { signal });
-    if (!response.ok) {
-      return [];
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    try {
+      const response = await fetch(url.toString(), { signal: signal ?? controller.signal });
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        return searchJobs(safeQuery, category, kind === 'jobs' ? 6 : 4);
+      }
+
+      const payload = (await response.json()) as { data?: SearchResultJob[] };
+      const data = Array.isArray(payload?.data) ? payload.data : [];
+
+      if (data.length === 0) {
+        return searchJobs(safeQuery, category, kind === 'jobs' ? 6 : 4);
+      }
+
+      return data as SearchResultJob[];
+    } catch (error) {
+      clearTimeout(timeout);
+      if (signal?.aborted) throw error;
+      return searchJobs(safeQuery, category, kind === 'jobs' ? 6 : 4);
     }
-
-    const payload = (await response.json()) as { data?: SearchResultJob[] };
-    const data = Array.isArray(payload?.data) ? payload.data : [];
-
-    if (data.length === 0) {
-      return [];
-    }
-
-    return data as SearchResultJob[];
   } catch (error) {
     if (signal?.aborted) throw error;
-    return [];
+    return searchJobs(safeQuery, category, kind === 'jobs' ? 6 : 4);
   }
 }

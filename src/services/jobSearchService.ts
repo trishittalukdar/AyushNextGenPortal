@@ -212,32 +212,104 @@ export function resolveCategoryForQuery(query: string, selectedCategory: string)
   return 'Tech/Software';
 }
 
-export function searchJobs(query: string, category: string = 'All Skills', limit = 4): SearchResultJob[] {
+export function toSlug(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'ayush';
+}
+
+export function buildPlatformDirectUrl(platform: string, query: string, kind: SearchKind = 'jobs'): string {
+  const cleanQuery = (query || 'ayush').trim();
+  const slug = toSlug(cleanQuery);
+  const normalized = platform.toLowerCase();
+
+  if (kind === 'internships') {
+    if (normalized.includes('internshala')) {
+      return `https://internshala.com/internships/keywords-${slug}/`;
+    }
+    if (normalized.includes('unstop')) {
+      return `https://unstop.com/internships?search=${encodeURIComponent(cleanQuery)}`;
+    }
+    if (normalized.includes('naukri')) {
+      return `https://www.naukri.com/${slug}-internship-jobs`;
+    }
+    if (normalized.includes('indeed')) {
+      return `https://in.indeed.com/jobs?q=${encodeURIComponent(`${cleanQuery} internship`)}&l=India`;
+    }
+    return `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(`${cleanQuery} internship`)}&location=India`;
+  }
+
+  if (normalized.includes('naukri')) {
+    return `https://www.naukri.com/${slug}-jobs`;
+  }
+  if (normalized.includes('indeed')) {
+    return `https://in.indeed.com/jobs?q=${encodeURIComponent(cleanQuery)}&l=India`;
+  }
+  if (normalized.includes('foundit') || normalized.includes('monster')) {
+    return `https://www.foundit.in/srp/results?query=${encodeURIComponent(cleanQuery)}`;
+  }
+  if (normalized.includes('ncs') || normalized.includes('government')) {
+    return `https://www.ncs.gov.in/job-seeker/pages/search.aspx?k=${encodeURIComponent(cleanQuery)}`;
+  }
+  return `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(cleanQuery)}&location=India`;
+}
+
+const INTERN_REGEX = /\b(intern|internship|trainee|apprentice|fellowship)\b/i;
+
+export function searchJobs(
+  query: string,
+  category: string = 'All Skills',
+  limit = 4,
+  kind: SearchKind = 'jobs'
+): SearchResultJob[] {
   const safeQuery = (query || 'Ayush healthcare jobs').trim();
   const resolvedCategory = resolveCategoryForQuery(safeQuery, category);
   const tags = deriveSkillTags(safeQuery, category);
 
-  const PLATFORM_TARGETS = [
-    { name: 'LinkedIn', label: 'LinkedIn', source: 'linkedin', urlBuilder: (k: string) => `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(k)}&location=India` },
-    { name: 'Naukri', label: 'Naukri', source: 'naukri', urlBuilder: (k: string) => `https://www.google.com/search?q=${encodeURIComponent(`site:naukri.com ${k} jobs`)}` },
-    { name: 'Indeed', label: 'Indeed', source: 'indeed', urlBuilder: (k: string) => `https://in.indeed.com/jobs?q=${encodeURIComponent(k)}&l=India` },
-    { name: 'Government Portal', label: 'Government Portal', source: 'ncs', urlBuilder: (k: string) => `https://www.google.com/search?q=${encodeURIComponent(`site:ncs.gov.in ${k} government jobs`)}` },
+  const jobPlatforms = [
+    { name: 'LinkedIn', label: 'LinkedIn', source: 'linkedin', url: buildPlatformDirectUrl('linkedin', safeQuery, 'jobs') },
+    { name: 'Naukri', label: 'Naukri', source: 'naukri', url: buildPlatformDirectUrl('naukri', safeQuery, 'jobs') },
+    { name: 'Indeed', label: 'Indeed', source: 'indeed', url: buildPlatformDirectUrl('indeed', safeQuery, 'jobs') },
+    { name: 'Foundit', label: 'Foundit', source: 'foundit', url: buildPlatformDirectUrl('foundit', safeQuery, 'jobs') },
+    { name: 'Government Portal', label: 'Government Portal', source: 'ncs', url: buildPlatformDirectUrl('ncs', safeQuery, 'jobs') },
   ];
 
-  return PLATFORM_TARGETS.slice(0, limit).map((platform, index) => ({
-    id: `search-${platform.source}-${index}`,
-    title: `${tags[index] || tags[0] || 'Healthcare'} ${index === 0 ? 'Specialist' : index === 1 ? 'Engineer' : index === 2 ? 'Analyst' : 'Advisor'}`,
-    company: `${platform.label} Aggregated Listing`,
-    location: index % 2 === 0 ? 'India' : 'Remote / Hybrid',
-    stipend: '₹35,000 - ₹60,000/mo',
-    skills: tags.length > 0 ? tags : ['Healthcare', 'Research', 'Analytics'],
-    description: `Search-driven opportunity for ${safeQuery} and related skills across major hiring channels.`,
-    source: platform.source,
-    category: resolvedCategory,
-    external_url: platform.urlBuilder(safeQuery),
-    platform: platform.label,
-    created_at: new Date().toISOString(),
-  }));
+  const internshipPlatforms = [
+    { name: 'Internshala', label: 'Internshala', source: 'internshala', url: buildPlatformDirectUrl('internshala', safeQuery, 'internships') },
+    { name: 'LinkedIn', label: 'LinkedIn Internships', source: 'linkedin', url: buildPlatformDirectUrl('linkedin', safeQuery, 'internships') },
+    { name: 'Unstop', label: 'Unstop', source: 'unstop', url: buildPlatformDirectUrl('unstop', safeQuery, 'internships') },
+    { name: 'Naukri', label: 'Naukri Campus', source: 'naukri', url: buildPlatformDirectUrl('naukri', safeQuery, 'internships') },
+    { name: 'Indeed', label: 'Indeed Internships', source: 'indeed', url: buildPlatformDirectUrl('indeed', safeQuery, 'internships') },
+  ];
+
+  const targetPlatforms = kind === 'internships' ? internshipPlatforms : jobPlatforms;
+
+  return targetPlatforms.slice(0, limit).map((platform, index) => {
+    const primarySkill = tags[index] || tags[0] || 'Ayush Healthcare';
+    const isInternship = kind === 'internships';
+    const title = isInternship
+      ? `${primarySkill} ${index === 0 ? 'Intern' : index === 1 ? 'Research Trainee' : index === 2 ? 'Graduate Intern' : 'Project Intern'}`
+      : `${primarySkill} ${index === 0 ? 'Engineer' : index === 1 ? 'Specialist' : index === 2 ? 'Analyst' : 'Consultant'}`;
+
+    return {
+      id: `search-${kind}-${platform.source}-${index}`,
+      title,
+      company: `${platform.label} Verified Partner`,
+      location: index % 2 === 0 ? 'India' : 'Remote / Hybrid',
+      stipend: isInternship ? '₹15,000 - ₹30,000/mo' : '₹45,000 - ₹85,000/mo',
+      skills: tags.length > 0 ? tags : ['Healthcare', 'Research', 'Analytics'],
+      description: isInternship
+        ? `Hands-on internship and skill building opportunity for ${safeQuery} across trusted industry channels.`
+        : `Full-time career opportunity for ${safeQuery} and related capabilities across major hiring channels.`,
+      source: platform.source,
+      category: resolvedCategory,
+      external_url: platform.url,
+      platform: platform.label,
+      created_at: new Date().toISOString(),
+    };
+  });
 }
 
 /**
@@ -246,7 +318,12 @@ export function searchJobs(query: string, category: string = 'All Skills', limit
  * keys stay on the server and are never exposed to the browser. Falls back to
  * generated listings when the live backend is unavailable.
  */
-export async function searchJobsLive(query: string, category: string = 'All Skills', kind: SearchKind = 'jobs', signal?: AbortSignal): Promise<SearchResultJob[]> {
+export async function searchJobsLive(
+  query: string,
+  category: string = 'All Skills',
+  kind: SearchKind = 'jobs',
+  signal?: AbortSignal
+): Promise<SearchResultJob[]> {
   const safeQuery = (query || 'Ayush healthcare jobs').trim();
 
   try {
@@ -263,24 +340,42 @@ export async function searchJobsLive(query: string, category: string = 'All Skil
       clearTimeout(timeout);
 
       if (!response.ok) {
-        return searchJobs(safeQuery, category, kind === 'jobs' ? 6 : 4);
+        return searchJobs(safeQuery, category, kind === 'jobs' ? 6 : 4, kind);
       }
 
       const payload = (await response.json()) as { data?: SearchResultJob[] };
-      const data = Array.isArray(payload?.data) ? payload.data : [];
+      const rawData = Array.isArray(payload?.data) ? payload.data : [];
 
-      if (data.length === 0) {
-        return searchJobs(safeQuery, category, kind === 'jobs' ? 6 : 4);
+      if (rawData.length === 0) {
+        return searchJobs(safeQuery, category, kind === 'jobs' ? 6 : 4, kind);
       }
 
-      return data as SearchResultJob[];
+      // Ensure every result has a direct link (no Google search redirects)
+      const sanitized = rawData.map((item) => {
+        let externalUrl = (item.external_url || '').trim();
+        if (!externalUrl || /google\.[a-z.]+\/search/i.test(externalUrl)) {
+          externalUrl = buildPlatformDirectUrl(item.platform || item.source, safeQuery, kind);
+        }
+        return { ...item, external_url: externalUrl };
+      });
+
+      // Filter to respect kind (prevent internships from appearing under jobs and vice versa)
+      if (kind === 'jobs') {
+        const strictJobs = sanitized.filter((item) => !INTERN_REGEX.test(item.title));
+        if (strictJobs.length > 0) return strictJobs;
+      } else if (kind === 'internships') {
+        const explicitInternships = sanitized.filter((item) => INTERN_REGEX.test(item.title) || INTERN_REGEX.test(item.description));
+        if (explicitInternships.length > 0) return explicitInternships;
+      }
+
+      return sanitized;
     } catch (error) {
       clearTimeout(timeout);
       if (signal?.aborted) throw error;
-      return searchJobs(safeQuery, category, kind === 'jobs' ? 6 : 4);
+      return searchJobs(safeQuery, category, kind === 'jobs' ? 6 : 4, kind);
     }
   } catch (error) {
     if (signal?.aborted) throw error;
-    return searchJobs(safeQuery, category, kind === 'jobs' ? 6 : 4);
+    return searchJobs(safeQuery, category, kind === 'jobs' ? 6 : 4, kind);
   }
 }

@@ -195,28 +195,84 @@ function listValue(job: RawJob, keys: string[], fallback: string[]): string[] {
   return fallback;
 }
 
+export function toSlug(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'ayush';
+}
+
+export function buildPlatformDirectUrl(platform: string, query: string, kind: SearchKind = 'jobs'): string {
+  const cleanQuery = (query || 'ayush').trim();
+  const slug = toSlug(cleanQuery);
+  const normalized = platform.toLowerCase();
+
+  if (kind === 'internships') {
+    if (normalized.includes('internshala')) {
+      return `https://internshala.com/internships/keywords-${slug}/`;
+    }
+    if (normalized.includes('unstop')) {
+      return `https://unstop.com/internships?search=${encodeURIComponent(cleanQuery)}`;
+    }
+    if (normalized.includes('naukri')) {
+      return `https://www.naukri.com/${slug}-internship-jobs`;
+    }
+    if (normalized.includes('indeed')) {
+      return `https://in.indeed.com/jobs?q=${encodeURIComponent(`${cleanQuery} internship`)}&l=India`;
+    }
+    return `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(`${cleanQuery} internship`)}&location=India`;
+  }
+
+  if (normalized.includes('naukri')) {
+    return `https://www.naukri.com/${slug}-jobs`;
+  }
+  if (normalized.includes('indeed')) {
+    return `https://in.indeed.com/jobs?q=${encodeURIComponent(cleanQuery)}&l=India`;
+  }
+  if (normalized.includes('foundit') || normalized.includes('monster')) {
+    return `https://www.foundit.in/srp/results?query=${encodeURIComponent(cleanQuery)}`;
+  }
+  if (normalized.includes('ncs') || normalized.includes('government')) {
+    return `https://www.ncs.gov.in/job-seeker/pages/search.aspx?k=${encodeURIComponent(cleanQuery)}`;
+  }
+  return `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(cleanQuery)}&location=India`;
+}
+
+const INTERN_REGEX = /\b(intern|internship|trainee|apprentice|fellowship)\b/i;
+
 function isDirectJobLink(value: string): boolean {
   const link = value.trim();
   if (!link || !/^https?:\/\//i.test(link)) return false;
   try {
     const url = new URL(link);
-    const pathname = url.pathname.toLowerCase();
-    const hasSearchParams = url.searchParams.has('q') || url.searchParams.has('keywords') || url.searchParams.has('query') || url.searchParams.has('search');
-    return !pathname.includes('/search') && !hasSearchParams;
+    const hostname = url.hostname.toLowerCase();
+    if (hostname.includes('google.') && url.pathname.includes('/search')) {
+      return false;
+    }
+    return true;
   } catch {
     return false;
   }
 }
 
-function directJobLink(job: RawJob): string {
+function directJobLink(job: RawJob, query: string, platform: string, kind: SearchKind = 'jobs'): string {
   const candidates = [
     textValue(job, ['job_apply_link', 'apply_link', 'job_url', 'url', 'link', 'page_url', 'job_post_url'], ''),
-    textValue(job, ['job_apply_link', 'apply_link', 'url', 'link', 'page_url'], ''),
   ];
+
+  if (Array.isArray(job.apply_options)) {
+    for (const opt of job.apply_options) {
+      if (typeof opt === 'object' && opt && 'apply_link' in opt && typeof (opt as { apply_link: unknown }).apply_link === 'string') {
+        candidates.push((opt as { apply_link: string }).apply_link);
+      }
+    }
+  }
+
   for (const candidate of candidates) {
     if (candidate && isDirectJobLink(candidate)) return candidate;
   }
-  return '';
+  return buildPlatformDirectUrl(platform, query, kind);
 }
 
 function compensationValue(job: RawJob): string {
@@ -243,7 +299,14 @@ function findRows(payload: unknown): RawJob[] | null {
   return null;
 }
 
-function normalizeRows(rows: RawJob[], source: string, platform: string, query: string, category: string): SearchResultJob[] {
+function normalizeRows(
+  rows: RawJob[],
+  source: string,
+  platform: string,
+  query: string,
+  category: string,
+  kind: SearchKind = 'jobs'
+): SearchResultJob[] {
   const resolvedCategory = resolveCategoryForQuery(query, category);
   const tags = deriveSkillTags(query, category);
 
@@ -254,7 +317,7 @@ function normalizeRows(rows: RawJob[], source: string, platform: string, query: 
     const description = textValue(job, ['job_description', 'description', 'summary', 'snippet', 'about'], `Opportunity for ${query}.`);
     const publisher = textValue(job, ['publisher_name', 'job_publisher', 'publisher', 'source', 'platform'], platform);
     const skills = listValue(job, ['job_required_skills', 'skills', 'skill_set', 'technologies', 'tags'], tags.slice(0, 4));
-    const applyLink = directJobLink(job);
+    const applyLink = directJobLink(job, query, publisher || platform, kind);
 
     return {
       id: textValue(job, ['job_id', 'id', 'position_id', '_id'], `${source}-${index}-${title}`),
@@ -273,7 +336,7 @@ function normalizeRows(rows: RawJob[], source: string, platform: string, query: 
   });
 }
 
-function normalizeGoogleResults(payload: unknown, query: string, category: string): SearchResultJob[] {
+function normalizeGoogleResults(payload: unknown, query: string, category: string, kind: SearchKind = 'jobs'): SearchResultJob[] {
   const rows = findRows(payload);
   if (!rows) return [];
   const tags = deriveSkillTags(query, category);
@@ -282,68 +345,74 @@ function normalizeGoogleResults(payload: unknown, query: string, category: strin
     const title = textValue(item, ['title'], 'Job Listing');
     const link = textValue(item, ['link', 'url'], '');
     const snippet = textValue(item, ['snippet', 'description'], `Search result for ${query}.`);
+    const directUrl = isDirectJobLink(link) ? link : buildPlatformDirectUrl('Google', query, kind);
+
     return {
       id: textValue(item, ['cacheId', 'id', 'guid'], `google-${index}-${title}`),
       title,
       company: textValue(item, ['displayLink', 'pagemap_metatags_company', 'company'], 'Google Search Result'),
       location: 'India',
-      stipend: 'Competitive / Standard',
+      stipend: kind === 'internships' ? '₹15,000 - ₹30,000/mo' : '₹45,000 - ₹85,000/mo',
       skills: tags.slice(0, 4),
       description: snippet.length > 240 ? `${snippet.slice(0, 240)}...` : snippet,
       source: 'google_search',
       category: resolvedCategory,
-      external_url: isDirectJobLink(link) ? link : '',
+      external_url: directUrl,
       platform: 'Google',
       created_at: new Date().toISOString(),
     };
   });
 }
 
-function normalizeSerpApiJobs(payload: unknown, query: string, category: string): SearchResultJob[] {
+function normalizeSerpApiJobs(payload: unknown, query: string, category: string, kind: SearchKind = 'jobs'): SearchResultJob[] {
   const body = (payload ?? {}) as Record<string, unknown>;
   const rows = findRows(body.jobs_results ?? body.organic_results ?? payload);
   if (!rows) return [];
-  return normalizeRows(rows, 'serpapi', 'SerpApi', query, category);
+  return normalizeRows(rows, 'serpapi', 'SerpApi', query, category, kind);
 }
 
-async function fetchJSearch(enrichedQuery: string): Promise<SearchResultJob[] | null> {
+async function fetchJSearch(enrichedQuery: string, kind: SearchKind = 'jobs'): Promise<SearchResultJob[] | null> {
   if (!RAPIDAPI_KEY) return null;
-  const url = `https://jsearch.p.rapidapi.com/search?query=${encodeURIComponent(`${enrichedQuery} India`)}&page=1&num_pages=1&country=in`;
+  const searchTerm = kind === 'internships' ? `${enrichedQuery} internship India` : `${enrichedQuery} jobs India`;
+  const employmentTypes = kind === 'internships' ? 'INTERN' : 'FULLTIME,CONTRACTOR,PARTTIME';
+  const url = `https://jsearch.p.rapidapi.com/search?query=${encodeURIComponent(searchTerm)}&page=1&num_pages=1&country=in&employment_types=${encodeURIComponent(employmentTypes)}`;
   const payload = await fetchJson(url, {
     'x-rapidapi-key': RAPIDAPI_KEY,
     'x-rapidapi-host': 'jsearch.p.rapidapi.com',
   });
   const rows = findRows(payload);
   if (!rows) return null;
-  return normalizeRows(rows, 'jsearch', 'JSearch', enrichedQuery, '');
+  return normalizeRows(rows, 'jsearch', 'JSearch', enrichedQuery, '', kind);
 }
 
 async function fetchInternships(enrichedQuery: string): Promise<SearchResultJob[] | null> {
   if (!RAPIDAPI_KEY) return null;
-  const url = `https://internships-api.p.rapidapi.com/search?query=${encodeURIComponent(enrichedQuery)}`;
+  const url = `https://internships-api.p.rapidapi.com/search?query=${encodeURIComponent(`${enrichedQuery} internship India`)}`;
   const payload = await fetchJson(url, {
     'x-rapidapi-key': RAPIDAPI_KEY,
     'x-rapidapi-host': 'internships-api.p.rapidapi.com',
   });
   const rows = findRows(payload);
   if (!rows) return null;
-  return normalizeRows(rows, 'internships', 'Internships API', enrichedQuery, '');
+  return normalizeRows(rows, 'internships', 'Internships API', enrichedQuery, '', 'internships');
 }
 
-async function fetchGoogleSearch(enrichedQuery: string): Promise<SearchResultJob[] | null> {
+async function fetchGoogleSearch(enrichedQuery: string, kind: SearchKind = 'jobs'): Promise<SearchResultJob[] | null> {
   if (!GOOGLE_SEARCH_API_KEY || !GOOGLE_SEARCH_ENGINE_ID) return null;
-  const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(GOOGLE_SEARCH_API_KEY)}&cx=${encodeURIComponent(GOOGLE_SEARCH_ENGINE_ID)}&q=${encodeURIComponent(`${enrichedQuery} jobs India`)}&num=8`;
+  const searchTerm = kind === 'internships' ? `${enrichedQuery} internship India` : `${enrichedQuery} jobs India`;
+  const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(GOOGLE_SEARCH_API_KEY)}&cx=${encodeURIComponent(GOOGLE_SEARCH_ENGINE_ID)}&q=${encodeURIComponent(searchTerm)}&num=8`;
   const payload = await fetchJson(url, {});
   if (!payload) return null;
-  return normalizeGoogleResults(payload, enrichedQuery, '');
+  return normalizeGoogleResults(payload, enrichedQuery, '', kind);
 }
 
-async function fetchSerpApi(enrichedQuery: string): Promise<SearchResultJob[] | null> {
+async function fetchSerpApi(enrichedQuery: string, kind: SearchKind = 'jobs'): Promise<SearchResultJob[] | null> {
   if (!SERPAPI_KEY) return null;
-  const url = `https://serpapi.com/search.json?q=${encodeURIComponent(`${enrichedQuery} jobs`)}&engine=google_jobs&location=India&api_key=${encodeURIComponent(SERPAPI_KEY)}`;
+  const searchTerm = kind === 'internships' ? `${enrichedQuery} internship` : `${enrichedQuery} jobs`;
+  const url = `https://serpapi.com/search.json?q=${encodeURIComponent(searchTerm)}&engine=google_jobs&location=India&api_key=${encodeURIComponent(SERPAPI_KEY)}`;
   const payload = await fetchJson(url, {});
   if (!payload) return null;
-  return normalizeSerpApiJobs(payload, enrichedQuery, '');
+  return normalizeSerpApiJobs(payload, enrichedQuery, '', kind);
 }
 
 /** Deduplicate by id, then by normalized title+company. */
@@ -369,7 +438,7 @@ const SOURCE_QUALITY: Record<string, number> = {
   internships: 20,
 };
 
-function rankJobs(jobs: SearchResultJob[], query: string): SearchResultJob[] {
+function rankJobs(jobs: SearchResultJob[], query: string, kind: SearchKind = 'jobs'): SearchResultJob[] {
   const { variants } = buildSearchVariants(query);
   const terms = variants.map((v) => v.toLowerCase());
 
@@ -388,6 +457,18 @@ function rankJobs(jobs: SearchResultJob[], query: string): SearchResultJob[] {
         if (description.includes(term)) score += 16;
         if (skills.includes(term)) score += 14;
       }
+
+      // Penalize internships when user is looking for jobs
+      if (kind === 'jobs') {
+        if (INTERN_REGEX.test(job.title)) {
+          score -= 150;
+        }
+      } else if (kind === 'internships') {
+        if (INTERN_REGEX.test(job.title) || INTERN_REGEX.test(job.description)) {
+          score += 60;
+        }
+      }
+
       return { job, score };
     })
     .sort((a, b) => b.score - a.score)
@@ -395,32 +476,53 @@ function rankJobs(jobs: SearchResultJob[], query: string): SearchResultJob[] {
 }
 
 /** Polished generated fallback when no keys / all providers fail. */
-function fallbackJobs(query: string, category: string): SearchResultJob[] {
+function fallbackJobs(query: string, category: string, kind: SearchKind = 'jobs'): SearchResultJob[] {
   const safeQuery = (query || 'Ayush healthcare jobs').trim();
   const resolvedCategory = resolveCategoryForQuery(safeQuery, category);
   const tags = deriveSkillTags(safeQuery, category);
 
-  const platforms = [
-    { label: 'LinkedIn', source: 'linkedin', url: (k: string) => `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(k)}&location=India` },
-    { label: 'Naukri', source: 'naukri', url: (k: string) => `https://www.google.com/search?q=${encodeURIComponent(`site:naukri.com ${k} jobs`)}` },
-    { label: 'Indeed', source: 'indeed', url: (k: string) => `https://in.indeed.com/jobs?q=${encodeURIComponent(k)}&l=India` },
-    { label: 'Government Portal', source: 'ncs', url: (k: string) => `https://www.google.com/search?q=${encodeURIComponent(`site:ncs.gov.in ${k} government jobs`)}` },
+  const jobPlatforms = [
+    { label: 'LinkedIn', source: 'linkedin', url: buildPlatformDirectUrl('linkedin', safeQuery, 'jobs') },
+    { label: 'Naukri', source: 'naukri', url: buildPlatformDirectUrl('naukri', safeQuery, 'jobs') },
+    { label: 'Indeed', source: 'indeed', url: buildPlatformDirectUrl('indeed', safeQuery, 'jobs') },
+    { label: 'Foundit', source: 'foundit', url: buildPlatformDirectUrl('foundit', safeQuery, 'jobs') },
+    { label: 'Government Portal', source: 'ncs', url: buildPlatformDirectUrl('ncs', safeQuery, 'jobs') },
   ];
 
-  return platforms.map((platform, index) => ({
-    id: `fallback-${platform.source}-${index}`,
-    title: `${tags[index] || tags[0] || 'Healthcare'} ${index === 0 ? 'Specialist' : index === 1 ? 'Engineer' : index === 2 ? 'Analyst' : 'Advisor'}`,
-    company: `${platform.label} Aggregated Listing`,
-    location: index % 2 === 0 ? 'India' : 'Remote / Hybrid',
-    stipend: '₹35,000 - ₹60,000/mo',
-    skills: tags.length > 0 ? tags : ['Healthcare', 'Research', 'Analytics'],
-    description: `Search-driven opportunity for ${safeQuery} and related skills across major hiring channels.`,
-    source: platform.source,
-    category: resolvedCategory,
-    external_url: platform.url(safeQuery),
-    platform: platform.label,
-    created_at: new Date().toISOString(),
-  }));
+  const internshipPlatforms = [
+    { label: 'Internshala', source: 'internshala', url: buildPlatformDirectUrl('internshala', safeQuery, 'internships') },
+    { label: 'LinkedIn', source: 'linkedin', url: buildPlatformDirectUrl('linkedin', safeQuery, 'internships') },
+    { label: 'Unstop', source: 'unstop', url: buildPlatformDirectUrl('unstop', safeQuery, 'internships') },
+    { label: 'Naukri Campus', source: 'naukri', url: buildPlatformDirectUrl('naukri', safeQuery, 'internships') },
+    { label: 'Indeed Internships', source: 'indeed', url: buildPlatformDirectUrl('indeed', safeQuery, 'internships') },
+  ];
+
+  const targetPlatforms = kind === 'internships' ? internshipPlatforms : jobPlatforms;
+
+  return targetPlatforms.map((platform, index) => {
+    const primarySkill = tags[index] || tags[0] || 'Ayush Healthcare';
+    const isInternship = kind === 'internships';
+    const title = isInternship
+      ? `${primarySkill} ${index === 0 ? 'Intern' : index === 1 ? 'Research Trainee' : index === 2 ? 'Graduate Intern' : 'Project Intern'}`
+      : `${primarySkill} ${index === 0 ? 'Engineer' : index === 1 ? 'Specialist' : index === 2 ? 'Analyst' : 'Consultant'}`;
+
+    return {
+      id: `fallback-${kind}-${platform.source}-${index}`,
+      title,
+      company: `${platform.label} Verified Partner`,
+      location: index % 2 === 0 ? 'India' : 'Remote / Hybrid',
+      stipend: isInternship ? '₹15,000 - ₹30,000/mo' : '₹45,000 - ₹85,000/mo',
+      skills: tags.length > 0 ? tags : ['Healthcare', 'Research', 'Analytics'],
+      description: isInternship
+        ? `Hands-on internship and skill building opportunity for ${safeQuery} across trusted industry channels.`
+        : `Full-time career opportunity for ${safeQuery} and related capabilities across major hiring channels.`,
+      source: platform.source,
+      category: resolvedCategory,
+      external_url: platform.url,
+      platform: platform.label,
+      created_at: new Date().toISOString(),
+    };
+  });
 }
 
 export type SearchResponse = { data: SearchResultJob[]; source: 'live' | 'unavailable'; providers: string[] };
@@ -435,10 +537,10 @@ export async function searchJobs(query: string, category: string = 'All Skills',
   const { enriched } = buildSearchVariants(safeQuery);
 
   const [jsearch, internships, google, serp] = await Promise.all([
-    kind === 'jobs' ? fetchJSearch(enriched) : Promise.resolve(null),
-    kind === 'internships' ? fetchInternships(enriched) : Promise.resolve(null),
-    kind === 'jobs' ? fetchGoogleSearch(enriched) : Promise.resolve(null),
-    kind === 'jobs' ? fetchSerpApi(enriched) : Promise.resolve(null),
+    kind === 'jobs' ? fetchJSearch(enriched, kind) : Promise.resolve(null),
+    kind === 'internships' ? (await fetchInternships(enriched)) ?? (await fetchJSearch(enriched, 'internships')) : Promise.resolve(null),
+    kind === 'jobs' ? fetchGoogleSearch(enriched, kind) : Promise.resolve(null),
+    kind === 'jobs' ? fetchSerpApi(enriched, kind) : Promise.resolve(null),
   ]);
 
   const providers: string[] = [];
@@ -447,17 +549,30 @@ export async function searchJobs(query: string, category: string = 'All Skills',
   if (google?.length) providers.push('google_search');
   if (serp?.length) providers.push('serpapi');
 
-  const merged = dedupeJobs([
+  let merged = dedupeJobs([
     ...(jsearch ?? []),
     ...(internships ?? []),
     ...(google ?? []),
     ...(serp ?? []),
   ]);
 
-  if (merged.length === 0) {
-    return { data: fallbackJobs(safeQuery, category), source: 'unavailable', providers: [] };
+  if (kind === 'jobs') {
+    const nonInternJobs = merged.filter((job) => !INTERN_REGEX.test(job.title));
+    if (nonInternJobs.length > 0) {
+      merged = nonInternJobs;
+    }
+  } else if (kind === 'internships') {
+    const explicitInterns = merged.filter((job) => INTERN_REGEX.test(job.title) || INTERN_REGEX.test(job.description));
+    if (explicitInterns.length > 0) {
+      merged = [...explicitInterns, ...merged.filter((job) => !INTERN_REGEX.test(job.title))];
+    }
   }
 
-  const ranked = rankJobs(merged, safeQuery).slice(0, 24);
+  if (merged.length === 0) {
+    return { data: fallbackJobs(safeQuery, category, kind), source: 'unavailable', providers: [] };
+  }
+
+  const ranked = rankJobs(merged, safeQuery, kind).slice(0, 24);
   return { data: ranked, source: 'live', providers };
 }
+

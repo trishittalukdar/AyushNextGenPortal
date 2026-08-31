@@ -86,21 +86,21 @@ function buildSupabaseUserProfile(user: User, preferredRole: AuthRole = 'student
 
   return {
     id: user?.id || `supabase-${Date.now()}`,
-    fullName: meta.full_name || meta.name || 'Supabase User',
+    fullName: meta.full_name || meta.name || (safeEmail ? safeEmail.split('@')[0].replace(/\./g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'Supabase User'),
     email: safeEmail,
     password: 'supabase-auth',
     role: (meta.role as AuthRole) || preferredRole,
     status: (meta.status as UserStatus) || 'Student',
-    specialty: meta.specialty || 'Career-focused professional',
-    institution: meta.institution || 'Supabase authenticated account',
-    skills: Array.isArray(meta.skills) && meta.skills.length ? meta.skills : ['AI/ML', 'Research', 'Data Analysis'],
-    headline: meta.headline || 'Career-focused learner',
-    location: meta.location || 'India',
-    bio: meta.bio || 'Verified Supabase user profile.',
-    education: meta.education || 'Profile details pending',
-    experience: meta.experience || 'Early career profile',
-    portfolio: meta.portfolio || 'https://example.com/portfolio',
-    availability: meta.availability || 'Open to opportunities',
+    specialty: meta.specialty || '',
+    institution: meta.institution || '',
+    skills: Array.isArray(meta.skills) ? meta.skills : [],
+    headline: meta.headline || '',
+    location: meta.location || '',
+    bio: meta.bio || '',
+    education: meta.education || '',
+    experience: meta.experience || '',
+    portfolio: meta.portfolio || '',
+    availability: meta.availability || '',
     asqScore: 88,
     skillMatchIndex: 88,
     verifiedClinicalHours: 34,
@@ -222,7 +222,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const profile: UserProfile = {
         id: data.user.id,
-        fullName: data.user.user_metadata?.full_name || 'Supabase User',
+        fullName: data.user.user_metadata?.full_name || (data.user.email ? data.user.email.split('@')[0].replace(/\./g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()) : 'Supabase User'),
         email: data.user.email || normalizedEmail,
         password,
         role: normalizeRole((data.user.user_metadata?.role as AuthRole) || normalizedRole),
@@ -269,8 +269,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const loginWithProvider = async (provider: AuthProvider, payload?: Partial<Pick<UserProfile, 'fullName' | 'email' | 'role'>>): Promise<UserProfile> => {
-    const safeName = (payload?.fullName || `${provider.charAt(0).toUpperCase()}${provider.slice(1)} User`).trim();
     const safeEmail = (payload?.email || '').trim().toLowerCase();
+    const safeName = (payload?.fullName || (safeEmail ? safeEmail.split('@')[0].replace(/\./g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : `${provider.charAt(0).toUpperCase()}${provider.slice(1)} User`)).trim();
     const safeRole = normalizeRole(payload?.role || 'student');
 
     const client = supabase;
@@ -419,8 +419,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return nextUser;
     }
 
-    if (!trimmedName || !trimmedEmail || !password || !trimmedSpecialty || !trimmedInstitution) {
-      throw new Error('Please complete all required fields.');
+    if (!trimmedName || !trimmedEmail || !password) {
+      throw new Error('Please enter your name, email, and password.');
     }
 
     const users = getStoredUsers();

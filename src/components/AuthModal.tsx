@@ -85,8 +85,8 @@ export function AuthModal({ open, initialMode = 'login', onClose, onToast }: Aut
       return;
     }
 
-    if (!fullName.trim() || !email.trim() || !password.trim() || !specialty.trim() || !institution.trim() || !selectedSkills.length) {
-      setError('Please complete all signup fields and select at least one skill.');
+    if (!fullName.trim() || !email.trim() || !password.trim()) {
+      setError('Please enter your name, email, and a password. You can complete the rest of your profile in Settings.');
       return;
     }
 
@@ -221,7 +221,7 @@ export function AuthModal({ open, initialMode = 'login', onClose, onToast }: Aut
             </div>
           </div>
 
-          {!isLogin && (
+          {!isLogin && false && (
             <>
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Current Status</label>

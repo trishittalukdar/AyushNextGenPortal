@@ -165,7 +165,7 @@ INSERT INTO jobs (title, company, location, stipend, skills, description, source
 -- Expanded candidates (12 multi-industry profiles)
 -- =========================================================
 INSERT INTO candidates (name, institution, asq_score, clinical_hours, skills, status) VALUES
-('Trishit Talukdar', 'Ayush Stream Academy', 88, 140,
+('Sample Candidate', 'Ayush Stream Academy', 88, 140,
   ARRAY['HPLC','Pharmacovigilance','GCP','Panchakarma','Analytical Chemistry','ADR Reporting','Clinical Trials'], 'Shortlisted'),
 ('Ananya Sharma', 'National Institute of Ayurveda, Jaipur', 92, 165,
   ARRAY['Panchakarma','Abhyanga','Shirodhara','Ayurveda Formulation','NABH','Nadi Pariksha'], 'Interview Scheduled'),

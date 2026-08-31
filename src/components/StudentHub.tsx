@@ -24,9 +24,9 @@ type Props = {
   onRequireAuth?: (feature: string) => void;
 };
 
-const STUDENT = {
-  name: 'Trishit Talukdar',
-  institution: 'Ayush Stream Academy',
+const getStudentName = (user: ReturnType<typeof useAuth>['user']) => {
+  if (!user) return 'Student';
+  return user.fullName || (user.email ? user.email.split('@')[0].replace(/\./g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()) : 'Student');
 };
 
 const sourceColors: Record<string, string> = {
@@ -290,7 +290,7 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
     }
 
     const { error } = await supabase.from('applications').insert({
-      job_id: job.id, applicant_name: STUDENT.name, asq_fit: fit,
+      job_id: job.id, applicant_name: getStudentName(user), asq_fit: fit,
     });
     setApplyingId(null);
     if (error) { onToast('Application could not be submitted', 'Please try again'); return; }
@@ -365,8 +365,8 @@ export function StudentHub({ onToast, onRequireAuth }: Props) {
                 <GraduationCap className="h-8 w-8 text-white" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-white">{STUDENT.name}</h2>
-                <p className="mt-1 text-sm text-emerald-100">{STUDENT.institution}</p>
+                <h2 className="text-2xl font-bold text-white">{getStudentName(user)}</h2>
+                <p className="mt-1 text-sm text-emerald-100">{user?.institution || 'Ayush Stream Academy'}</p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {STUDENT_SKILLS.slice(0, 6).map((skill) => (
                     <span key={skill} className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-medium text-white backdrop-blur-sm">{skill}</span>

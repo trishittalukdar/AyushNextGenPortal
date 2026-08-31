@@ -101,7 +101,7 @@ CREATE POLICY "anon_delete_candidates" ON candidates FOR DELETE
 CREATE TABLE IF NOT EXISTS applications (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   job_id uuid REFERENCES jobs(id) ON DELETE CASCADE,
-  applicant_name text NOT NULL DEFAULT 'Trishit Talukdar',
+  applicant_name text NOT NULL DEFAULT 'Portal user',
   asq_fit integer NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT now()
 );
@@ -164,7 +164,7 @@ ON CONFLICT DO NOTHING;
 -- Seed: candidates (for ASQ ranking table)
 -- =========================================================
 INSERT INTO candidates (name, institution, asq_score, clinical_hours, skills, status) VALUES
-('Trishit Talukdar', 'Ayush Stream Academy', 88, 140, ARRAY['HPLC','Pharmacovigilance','GCP','Panchakarma'], 'Shortlisted'),
+('Sample Candidate', 'Ayush Stream Academy', 88, 140, ARRAY['HPLC','Pharmacovigilance','GCP','Panchakarma'], 'Shortlisted'),
 ('Ananya Sharma', 'National Institute of Ayurveda', 92, 165, ARRAY['Panchakarma','Ayurveda Formulation','NABH'], 'Shortlisted'),
 ('Rahul Verma', 'IPGME&R Kolkata', 81, 110, ARRAY['HPLC','Analytical Chemistry'], 'Under Review'),
 ('Priya Nair', 'SDMCA Udupi', 90, 158, ARRAY['Yoga Therapy','GCP','NABH'], 'Shortlisted'),

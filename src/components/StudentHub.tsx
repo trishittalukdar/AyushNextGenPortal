@@ -14,6 +14,7 @@ function parseMonthlyPay(value: string): number | null {
 function formatPay(value: number | null) { return value === null ? 'Pay not disclosed' : new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value); }
 
 export function StudentHub(_props: Props) {
+  void _props;
   const [kind, setKind] = useState<SearchKind>('jobs');
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');

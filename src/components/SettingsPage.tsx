@@ -23,6 +23,7 @@ export function SettingsPage({ theme, setTheme, onToast }: { theme: 'light' | 'd
     verifiedClinicalHours: 0,
   });
   const [saving, setSaving] = useState(false);
+  const [activeSection, setActiveSection] = useState<'account' | 'appearance'>('account');
 
   useEffect(() => {
     if (!user) return;
@@ -98,8 +99,8 @@ export function SettingsPage({ theme, setTheme, onToast }: { theme: 'light' | 'd
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:order-2 lg:col-span-2 space-y-6">
+      <div className="grid gap-6 lg:grid-cols-[14rem_minmax(0,1fr)]">
+        <div className={`${activeSection === 'account' ? 'block' : 'hidden'} space-y-6 lg:col-start-2 lg:row-start-1`}>
           <section id="account-details" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <div className="mb-5 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
@@ -298,17 +299,17 @@ export function SettingsPage({ theme, setTheme, onToast }: { theme: 'light' | 'd
           </section>
         </div>
 
-        <aside className="lg:order-1 space-y-6">
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <aside className="contents">
+          <section className="lg:col-start-1 lg:row-start-1 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <p className="px-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Settings</p>
-            <a href="#account-details" className="mt-2 flex items-center gap-3 rounded-xl bg-emerald-50 px-3 py-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300">
+            <button type="button" onClick={() => setActiveSection('account')} className={`mt-2 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${activeSection === 'account' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800'}`}>
               <User className="h-4 w-4" /> Account details
-            </a>
-            <a href="#appearance" className="mt-1 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800">
+            </button>
+            <button type="button" onClick={() => setActiveSection('appearance')} className={`mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${activeSection === 'appearance' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800'}`}>
               <Palette className="h-4 w-4" /> Appearance
-            </a>
+            </button>
           </section>
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <section className={`${activeSection === 'appearance' ? 'block' : 'hidden'} lg:col-start-2 lg:row-start-1 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900`}>
             <div className="mb-4 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
                 <Palette className="h-5 w-5" />
@@ -343,7 +344,7 @@ export function SettingsPage({ theme, setTheme, onToast }: { theme: 'light' | 'd
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <section className={`${activeSection === 'appearance' ? 'block' : 'hidden'} lg:col-start-2 lg:row-start-2 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900`}>
             <div className="mb-4 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">
                 <LogOut className="h-5 w-5" />

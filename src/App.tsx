@@ -22,7 +22,7 @@ import { useAuth } from './context/AuthContext';
 type Tab = 'student' | 'employer' | 'ministry';
 
 const tabs: { id: Tab; label: string; icon: typeof GraduationCap; desc: string }[] = [
-  { id: 'student', label: 'Student Hub', icon: GraduationCap, desc: 'Search & apply' },
+  { id: 'student', label: 'Job Finder', icon: Briefcase, desc: 'Live job and internship search' },
   { id: 'employer', label: 'Industry Portal', icon: Briefcase, desc: 'Post & rank' },
   { id: 'ministry', label: 'Ministry Analytics', icon: BarChart3, desc: 'National view' },
 ];

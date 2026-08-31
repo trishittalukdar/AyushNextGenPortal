@@ -22,6 +22,7 @@ function localApiPlugin(): PluginOption {
           const parsed = new URL(reqUrl, 'http://localhost');
           const query = (parsed.searchParams.get('query') ?? '').trim();
           const category = parsed.searchParams.get('category') ?? 'All Skills';
+          const kind = parsed.searchParams.get('kind') === 'internships' ? 'internships' : 'jobs';
 
           if (!query) {
             res.statusCode = 400;
@@ -30,7 +31,7 @@ function localApiPlugin(): PluginOption {
             return;
           }
 
-          const result = await runJobSearch(query, category);
+          const result = await runJobSearch(query, category, kind);
           res.statusCode = 200;
           res.setHeader('Content-Type', 'application/json');
           res.setHeader('Cache-Control', 'no-store');

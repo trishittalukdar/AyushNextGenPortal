@@ -28,9 +28,11 @@ export type SearchResultJob = {
   created_at: string;
 };
 
+export type SearchKind = 'jobs' | 'internships';
+
 type RawJob = Record<string, unknown>;
 
-const RAPIDAPI_KEY = (process.env.RAPIDAPI_KEY ?? process.env.VITE_RAPIDAPI_KEY ?? '').trim();
+const RAPIDAPI_KEY = (process.env.RAPIDAPI_KEY ?? '').trim();
 const GOOGLE_SEARCH_API_KEY = (process.env.GOOGLE_SEARCH_API_KEY ?? '').trim();
 const GOOGLE_SEARCH_ENGINE_ID = (process.env.GOOGLE_SEARCH_ENGINE_ID ?? '').trim();
 const SERPAPI_KEY = (process.env.SERPAPI_KEY ?? '').trim();
@@ -217,6 +219,19 @@ function directJobLink(job: RawJob): string {
   return '';
 }
 
+function compensationValue(job: RawJob): string {
+  const explicit = textValue(job, ['salary', 'stipend', 'salary_range', 'job_salary', 'compensation'], '');
+  if (explicit) return explicit;
+  const min = textValue(job, ['job_min_salary', 'min_salary', 'salary_min'], '');
+  const max = textValue(job, ['job_max_salary', 'max_salary', 'salary_max'], '');
+  const currency = textValue(job, ['job_salary_currency', 'currency'], '₹');
+  const period = textValue(job, ['job_salary_period', 'salary_period', 'pay_period'], 'month');
+  if (min && max) return `${currency}${min} – ${currency}${max} / ${period}`;
+  if (min) return `From ${currency}${min} / ${period}`;
+  if (max) return `Up to ${currency}${max} / ${period}`;
+  return 'Not disclosed';
+}
+
 /** Find the first array-like payload inside common wrapper keys. */
 function findRows(payload: unknown): RawJob[] | null {
   if (!payload || typeof payload !== 'object') return null;
@@ -239,14 +254,14 @@ function normalizeRows(rows: RawJob[], source: string, platform: string, query: 
     const description = textValue(job, ['job_description', 'description', 'summary', 'snippet', 'about'], `Opportunity for ${query}.`);
     const publisher = textValue(job, ['publisher_name', 'job_publisher', 'publisher', 'source', 'platform'], platform);
     const skills = listValue(job, ['job_required_skills', 'skills', 'skill_set', 'technologies', 'tags'], tags.slice(0, 4));
-    const applyLink = directJobLink(job) || textValue(job, ['job_apply_link', 'apply_link', 'url', 'link'], '');
+    const applyLink = directJobLink(job);
 
     return {
       id: textValue(job, ['job_id', 'id', 'position_id', '_id'], `${source}-${index}-${title}`),
       title,
       company,
       location,
-      stipend: textValue(job, ['salary', 'stipend', 'salary_range', 'job_salary', 'compensation'], 'Competitive / Standard'),
+      stipend: compensationValue(job),
       skills,
       description: description.length > 240 ? `${description.slice(0, 240)}...` : description,
       source: source,
@@ -408,22 +423,22 @@ function fallbackJobs(query: string, category: string): SearchResultJob[] {
   }));
 }
 
-export type SearchResponse = { data: SearchResultJob[]; source: 'live' | 'fallback'; providers: string[] };
+export type SearchResponse = { data: SearchResultJob[]; source: 'live' | 'unavailable'; providers: string[] };
 
 /**
  * Run a job search across all configured providers in parallel, merge, dedupe,
  * rank, and return `{ data, source, providers }`. Falls back to generated results
  * when no keys are set or every provider returns nothing.
  */
-export async function searchJobs(query: string, category: string = 'All Skills'): Promise<SearchResponse> {
+export async function searchJobs(query: string, category: string = 'All Skills', kind: SearchKind = 'jobs'): Promise<SearchResponse> {
   const safeQuery = (query || 'Ayush healthcare jobs').trim();
   const { enriched } = buildSearchVariants(safeQuery);
 
   const [jsearch, internships, google, serp] = await Promise.all([
-    fetchJSearch(enriched),
-    fetchInternships(enriched),
-    fetchGoogleSearch(enriched),
-    fetchSerpApi(enriched),
+    kind === 'jobs' ? fetchJSearch(enriched) : Promise.resolve(null),
+    kind === 'internships' ? fetchInternships(enriched) : Promise.resolve(null),
+    kind === 'jobs' ? fetchGoogleSearch(enriched) : Promise.resolve(null),
+    kind === 'jobs' ? fetchSerpApi(enriched) : Promise.resolve(null),
   ]);
 
   const providers: string[] = [];
@@ -439,9 +454,7 @@ export async function searchJobs(query: string, category: string = 'All Skills')
     ...(serp ?? []),
   ]);
 
-  if (merged.length === 0) {
-    return { data: fallbackJobs(safeQuery, category), source: 'fallback', providers: [] };
-  }
+  if (merged.length === 0) return { data: [], source: 'unavailable', providers: [] };
 
   const ranked = rankJobs(merged, safeQuery).slice(0, 24);
   return { data: ranked, source: 'live', providers };

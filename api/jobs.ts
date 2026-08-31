@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { searchJobs } from './searchEngine';
+import { searchJobs, type SearchKind } from './searchEngine';
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   if (request.method !== 'GET') {
@@ -8,13 +8,14 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
   const query = typeof request.query.query === 'string' ? request.query.query.trim() : '';
   const category = typeof request.query.category === 'string' ? request.query.category : 'All Skills';
+  const kind: SearchKind = request.query.kind === 'internships' ? 'internships' : 'jobs';
 
   if (!query) {
     return response.status(400).json({ error: 'A search query is required' });
   }
 
   try {
-    const result = await searchJobs(query, category);
+    const result = await searchJobs(query, category, kind);
     return response
       .setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600')
       .status(200)

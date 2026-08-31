@@ -23,6 +23,8 @@ export type SearchResultJob = {
   created_at: string;
 };
 
+export type SearchKind = 'jobs' | 'internships';
+
 const SEARCH_SKILLS: Record<SearchCategory, string[]> = {
   'All Skills': ['Ayush', 'Healthcare', 'Research', 'Software', 'AI', 'Data', 'Engineering'],
   'AYUSH & Medicine': ['Ayurveda', 'Panchakarma', 'Ayush', 'Pharmacovigilance', 'NABH'],
@@ -241,32 +243,34 @@ export function searchJobs(query: string, category: string = 'All Skills', limit
 /**
  * Live job search. Calls the server-side `/api/jobs` endpoint (served by the
  * Vite dev middleware locally and by the Vercel function in production) so API
- * keys stay on the server and are never exposed to the browser. Falls back to
- * generated results when the backend is unreachable or returns nothing.
+ * keys stay on the server and are never exposed to the browser. It returns an
+ * empty result set when the live backend is unavailable; generated listings are
+ * never shown.
  */
-export async function searchJobsLive(query: string, category: string = 'All Skills', signal?: AbortSignal): Promise<SearchResultJob[]> {
+export async function searchJobsLive(query: string, category: string = 'All Skills', kind: SearchKind = 'jobs', signal?: AbortSignal): Promise<SearchResultJob[]> {
   const safeQuery = (query || 'Ayush healthcare jobs').trim();
 
   try {
     const url = new URL('/api/jobs', window.location.origin);
     url.searchParams.set('query', safeQuery);
     url.searchParams.set('category', category);
+    url.searchParams.set('kind', kind);
 
     const response = await fetch(url.toString(), { signal });
     if (!response.ok) {
-      return searchJobs(safeQuery, category, 4);
+      return [];
     }
 
     const payload = (await response.json()) as { data?: SearchResultJob[] };
     const data = Array.isArray(payload?.data) ? payload.data : [];
 
     if (data.length === 0) {
-      return searchJobs(safeQuery, category, 4);
+      return [];
     }
 
     return data as SearchResultJob[];
   } catch (error) {
     if (signal?.aborted) throw error;
-    return searchJobs(safeQuery, category, 4);
+    return [];
   }
 }
